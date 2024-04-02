@@ -9,11 +9,13 @@ import matplotlib.pyplot as plt
 #     'DenseNet': {'losses': [0.6854921842310163, 0.11557560107575522], 'epochs': [1, 2]}
 # }
 
-def plot_losses(results):
+def plot_losses(results, val_results):
     plt.figure(figsize=(10, 6))
     for model_name, data in results.items():
         # available flags for customizing: linestyle="--", linewidth=2, marker,
         plt.plot(data['epochs'], data['losses'], label=model_name, marker=".")
+    for model_name, data in val_results.items():
+        plt.plot(data['val_epochs'], data['val_losses'], label=model_name)
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Losses per Epoch')
@@ -21,15 +23,15 @@ def plot_losses(results):
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.show()
 
-def plot_accuracies(results):
+def plot_accuracies(results, val_results):
     plt.figure(figsize=(10, 6))
     for model_name, data in results.items():
         plt.plot(data['epochs'], data['accuracies'], label=model_name)
+    for model_name, data in val_results.items():
+        plt.plot(data['val_epochs'], data['val_accuracies'], label=model_name)
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.title('Accuracy per Epoch')
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.show()
-
-plot_losses(results)
