@@ -5,10 +5,9 @@
 [Actual version of the notebook for optimizers](https://colab.research.google.com/drive/17dpcnR9XWW8YX4VZMOO4tWk0fPokBiKh?usp=sharing) (for test purposes)
 
 <h1>Model training</h1>
- 
-## Clone the repo
+ ![alt text](/screenshots/screenshot0.png)
 
-![alt text](/screenshots/screenshot0.png)
+## Clone the repo
 ```
 git clone https://github.com/pelancha/galaxyHackers/
 ```
