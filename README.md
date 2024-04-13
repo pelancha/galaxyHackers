@@ -21,4 +21,4 @@ pip install -r requirements.txt
 cd galaxyHackers/models
 python3 main.py --model MODEL_NAME --epoch NUM_EPOCH --lr LR
 ```
-It is possible to run a script with several training model simultaniously
+It is possible to run a script with several training model at the same time
