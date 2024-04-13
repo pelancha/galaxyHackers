@@ -1,3 +1,13 @@
+import torch
+import torch.nn as nn
+import torchvision
+from torchvision import transforms
+from torch.utils.data import DataLoader
+import torch.backends.cudnn as cudnn
+import torch.optim as optim
+from tqdm import tqdm
+import os
+
 def train(model, train_loader, criterion, optimizer, device, num_epochs, start_epoch=0):
     model.to(device)
     model.train()
@@ -38,7 +48,7 @@ def continue_training(model, train_loader, criterion, optimizer, device, num_epo
 
     return losses, epochs, accuracies
 
-def validate(model, train_loader, criterion, device, num_epochs, start_epoch=0):
+def validate(model, val_loader, criterion, device, num_epochs, start_epoch=0):
     model.to(device)
     model.eval()
     val_losses, val_epochs, val_accuracies = [], [], []
@@ -46,7 +56,7 @@ def validate(model, train_loader, criterion, device, num_epochs, start_epoch=0):
       for epoch in range(start_epoch, num_epochs):
           running_loss = 0.0
           correct, total = 0, 0
-          cool_progress_bar = tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}. Validating {model.__class__.__name__}', unit='batch')
+          cool_progress_bar = tqdm(val_loader, desc=f'Epoch {epoch + 1}/{num_epochs}. Validating {model.__class__.__name__}', unit='batch')
           for inputs, labels in cool_progress_bar:
               inputs, labels = inputs.to(device), labels.to(device)
               outputs = model(inputs)
@@ -55,8 +65,8 @@ def validate(model, train_loader, criterion, device, num_epochs, start_epoch=0):
               _, predicted = torch.max(outputs, 1)
               total += labels.size(0)
               correct += (predicted == labels).sum().item()
-              cool_progress_bar.set_postfix(loss=running_loss / len(train_loader.dataset), acc=correct / total)
-          val_epoch_loss = running_loss / len(train_loader.dataset)
+              cool_progress_bar.set_postfix(loss=running_loss / len(val_loader.dataset), acc=correct / total)
+          val_epoch_loss = running_loss / len(val_loader.dataset)
           val_epoch_acc = correct / total
           val_losses.append(val_epoch_loss)
           val_accuracies.append(val_epoch_acc)
