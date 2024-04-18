@@ -4,3 +4,8 @@ timm==0.9.16
 torch==2.2.2
 torchvision==0.17.2
 tqdm==4.66.2
+
+pandas==2.2.2
+astropy==6.0.1
+scikit-image==0.23.1
+pillow==10.3.0
