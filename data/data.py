@@ -1,3 +1,5 @@
+'''Script to get dataloaders'''
+
 import legacy_for_img
 
 import os
@@ -23,49 +25,26 @@ from astropy.coordinates import Angle
 import astropy.coordinates as coord
 
 from sklearn.model_selection import train_test_split
-from typing import List
+# from typing import List
+from os.path import exists
 
-
-def toHmsFormat(s):
-    l = s.split()
-    s = l[0]+'h'+l[1]+'m'+l[2]+'s'
-    return s
-
-
-def toDmsFormat(s):
-    l = s.split()
-    s = l[0]+'d'+l[1]+'m'+l[2]+'s'
-    return s
-
-
-# Create negative class from Macdows
-
-def createNegativeClassRac(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 360 or (x + randChoice) < 0:
-      randChoice = np.random.normal(-15, 15)
-    return x + randChoice
-
-
-def createNegativeClassDec(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 90 or (x + randChoice) < -90:
-        randChoice = np.random.normal(-15, 15)
-    return x + randChoice
-
+# TODO: add GAIA catalog when it's available
+# TODO: update requirements.txt if necessary
 
 def read_dr5():
-    # Карта покрытия ACT
-    wget.download(
-        url='https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/maps/act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits',
-        out='./act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits')
+    if not (os.path.exists('./act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits')):
+        # Карта покрытия ACT
+        wget.download(
+            url='https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/maps/act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits',
+            out='./act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits')
 
-    # Скопления
-    wget.download(url='https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/DR5_cluster-catalog_v1.1.fits',
-                  out='./DR5_cluster-catalog_v1.1.fits')
+    if not (os.path.exists('./DR5_cluster-catalog_v1.1.fits')):
+        # Скопления
+        wget.download(url='https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/DR5_cluster-catalog_v1.1.fits',
+                      out='./DR5_cluster-catalog_v1.1.fits')
 
 
-    dr5 = atpy.Table().read('/content/DR5_cluster-catalog_v1.1.fits').to_pandas().reset_index(drop=True)
+    dr5 = atpy.Table().read('./DR5_cluster-catalog_v1.1.fits').to_pandas().reset_index(drop=True)
     dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
 
     return dr5
@@ -85,7 +64,18 @@ def readMC():
 
     return madCows_table
 
-def concat_tables(args: List):
+def toHmsFormat(s):
+    l = s.split()
+    s = l[0]+'h'+l[1]+'m'+l[2]+'s'
+    return s
+
+
+def toDmsFormat(s):
+    l = s.split()
+    s = l[0]+'d'+l[1]+'m'+l[2]+'s'
+    return s
+
+def concat_tables():
     dr5 = read_dr5()
     madCows_table = readMC()
 
@@ -102,16 +92,16 @@ def concat_tables(args: List):
             'decDeg': pd.concat([decdegDr5, decdegMC], ignore_index=True)
         }
     )
-    # output = [eval(arg) for arg in args if arg in ['clustersDr5_MC', 'radegMC', 'decdegMC', 'radegDr5', 'decdegDr5']]
 
     return clustersDr5_MC
 
-# Create negative class from dr5
-def createNegativeClassDR5():
-    # clustersDr5_MC = concat_tables(['clustersDr5_MC'])
-    clustersDr5_MC = concat_tables()
+"""Create sample from dr5 clsuter catalogue"""
 
-    path = '/content/'
+def createNegativeClassDR5():
+    clustersDr5_MC = concat_tables()
+    dr5 = read_dr5()
+
+    path = './'
 
     imap_98 = enmap.read_fits(path + 'act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits')[0]
 
@@ -135,7 +125,7 @@ def createNegativeClassDR5():
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)
             name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(clustersDr5_MC): # instead of dr5?
+            if len(ra) == len(dr5):
                 break
 
     n = len(ra)
@@ -143,11 +133,8 @@ def createNegativeClassDR5():
     dfNegativeFromDr5 = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
     return dfNegativeFromDr5
 
-
 def create_data_dr5():
-    # Final data_dr5 with positive and negative classes
     clusters = read_dr5()
-    # clusters = dr5
     clusters = clusters[['name', 'RADeg', 'decDeg']].reset_index(drop=True)
     clusters.rename(columns = {'name': 'Component_name', 'RADeg': 'RA', 'decDeg': 'DEC'}, inplace = True )
     clusters['target'] = 1
@@ -157,6 +144,19 @@ def create_data_dr5():
 
     return data_dr5
 
+"""Create sample from MadCows catalogue"""
+def createNegativeClassRac(x):
+    randChoice = np.random.normal(-15, 15)
+    while (x + randChoice) > 360 or (x + randChoice) < 0:
+      randChoice = np.random.normal(-15, 15)
+    return x + randChoice
+
+
+def createNegativeClassDec(x):
+    randChoice = np.random.normal(-15, 15)
+    while (x + randChoice) > 90 or (x + randChoice) < -90:
+        randChoice = np.random.normal(-15, 15)
+    return x + randChoice
 
 def createNegativeClassMC(radegMC, decdegMC):
     clustersDr5_MC = concat_tables()
@@ -178,7 +178,7 @@ def createNegativeClassMC(radegMC, decdegMC):
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)
             name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(clustersDr5_MC): # instead of dr5.
+            if len(ra) == len(radegMC): # number of macdows clusters
                 break
 
     n = len(ra)
@@ -186,8 +186,6 @@ def createNegativeClassMC(radegMC, decdegMC):
     dfNegativeFromMacdows = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
 
     return dfNegativeFromMacdows
-
-# Final data_macdows with positive and negative classes
 
 def create_data_macdows():
     madCows_table = readMC()
@@ -200,13 +198,13 @@ def create_data_macdows():
     data_macdows = pd.concat([clusters, random]).reset_index(drop=True)
     return data_macdows
 
-# Test val and test data
+"""Split samples into train, validation and tests and get pictures from legacy survey"""
 
 def train_val_test_split():
     data_dr5 = create_data_dr5()
     data_macdows = create_data_macdows()
 
-    work_path = '/content/'
+    work_path = './'
 
     folderlocation = f'{work_path}data/Data224/'
     folders = ['train', 'val', 'test_dr5', 'test_macdows']
@@ -243,15 +241,14 @@ def train_val_test_split():
     list_test_dr5, list_test_MC = [test_dr5_0, test_dr5_1], [test_macdows_0, test_macdows_1]
     return list_train, list_val, list_test_dr5, list_test_MC
 
-
-def ddos(dr5, madCows_table):
+def ddos():
     list_train, list_val, list_test_dr5, list_test_MC = train_val_test_split()
     train_0, train_1 = list_train
     val_0, val_1 = list_val
     test_dr5_0, test_dr5_1 = list_test_dr5
-    test_macdows_0, test_macdows_1 =list_test_MC
+    test_macdows_0, test_macdows_1 = list_test_MC
 
-    work_path = '/content/'
+    work_path = './'
     folders = [(train_0, 'train/0'), (train_1, 'train/1'), (val_0, 'val/0'), (val_1, 'val/1'),
                (test_dr5_0, 'test_dr5/0'), (test_dr5_1, 'test_dr5/1'), (test_macdows_0, 'test_macdows/0'),
                (test_macdows_1, 'test_macdows/1')]
@@ -260,13 +257,8 @@ def ddos(dr5, madCows_table):
         legacy_for_img.grab_cutouts(target_file=subfolder, output_dir=output_dir, survey='unwise-neo7', imgsize_pix=224,
                                     file_format='jpg')
 
-    data_macdows = create_data_macdows(dr5, madCows_table)
-    for type_ in [0, 1]:
-        test_macdows_subset = data_macdows[data_macdows.target == type_].reset_index(drop=True)
-        output_dir = f'{work_path}/data/Data224/test_macdows/{type_}'
-        legacy_for_img.grab_cutouts(target_file=test_macdows_subset, output_dir=output_dir, survey='unwise-neo7',
-                                    imgsize_pix=224, file_format='jpg')
 
+"""Create dataloaders"""
 
 def imshow(inp, title=None):
     """Imshow for Tensor."""
@@ -281,9 +273,9 @@ def imshow(inp, title=None):
     plt.axis('off')
     plt.pause(0.001)  # pause a bit so that plots are updated
 
-# Dataloader
-
 def create_dataloader():
+    ddos()
+
     data_transforms = {
         'train': transforms.Compose([
             transforms.Resize((224,224)),
@@ -309,7 +301,7 @@ def create_dataloader():
         ]),
     }
 
-    folderlocation = '/content/data/Data224/'
+    folderlocation = './data/Data224/'
     data_dir = folderlocation
     image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
                                               data_transforms[x])
@@ -317,9 +309,12 @@ def create_dataloader():
     dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=64,
                                                  shuffle=True, num_workers=3)
                   for x in ['train', 'val', 'test_dr5', 'test_macdows']}
-    # dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test_dr5', 'test_macdows']}
-    #
-    # class_names = image_datasets['train'].classes
+
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test_dr5', 'test_macdows']}
+
+    class_names = image_datasets['train'].classes
+
+    print(f'There are {len(class_names)} classes\nSize of train is {dataset_sizes["train"]}\n\tvalidation is {dataset_sizes["val"]}\n\ttest_dr5 is {dataset_sizes["test_dr5"]}\n\ttest_macdows is {dataset_sizes["test_macdows"]}')
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -332,5 +327,3 @@ def create_dataloader():
     imshow(out)
 
     return device, dataloaders
-
-
