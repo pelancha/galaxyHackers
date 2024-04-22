@@ -7,7 +7,7 @@ from torch.utils.data import random_split, DataLoader
 import os
 import timm
 import numpy as np
-
+import data
 import argparse
 
 from train import train, validate, continue_training
@@ -15,26 +15,17 @@ from plot_builder import plot_losses, plot_accuracies
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
-
-dataset = CIFAR10(root='./data', train=True, download=True, transform=transform)
-train_size = int(0.8 * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64, shuffle=True)
+dataloader = data.create_dataloader()
+train_loader = dataloader['train']
+val_loader = dataloader['val']
 
 models = [
-    ('ResNet18', timm.create_model('resnet18', pretrained=True)),
-    ('ResNet50', timm.create_model('resnet50', pretrained=True)),
-    ('EfficientNet', timm.create_model('efficientnet_b0', pretrained=True)),
-    ('ViT', timm.create_model('vit_base_patch16_224', pretrained=True)),
-    ('VGGNet', timm.create_model('vgg11', pretrained=True)),
-    ('DenseNet', timm.create_model('densenet121', pretrained=True))
+    ('ResNet18', timm.create_model('resnet18', pretrained=True, num_classes=1)),
+    ('ResNet50', timm.create_model('resnet50', pretrained=True, num_classes=1)),
+    ('EfficientNet', timm.create_model('efficientnet_b0', pretrained=True, num_classes=1)),
+    ('ViT', timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=1)),
+    ('VGGNet', timm.create_model('vgg11', pretrained=True, num_classes=1)),
+    ('DenseNet', timm.create_model('densenet121', pretrained=True, num_classes=1))
 ]
 
 parser = argparse.ArgumentParser(description='Model training')
@@ -75,7 +66,6 @@ for model_name, data in results.items():
 for model_name, data in val_results.items():
     np.savez(f'results/{model_name}_val_results.npz', losses=data['val_losses'], epochs=data['val_epochs'], accuracies=data['val_accuracies'])    
 
-#TODO: make plot functions able to work with val_results
 plot_losses(results, val_results)
 plot_accuracies(results, val_results)
 
