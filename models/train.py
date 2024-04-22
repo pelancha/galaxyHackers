@@ -20,7 +20,7 @@ def train(model, train_loader, criterion, optimizer, device, num_epochs, start_e
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels.unsqueeze(1).float())
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
@@ -60,7 +60,7 @@ def validate(model, val_loader, criterion, device, num_epochs, start_epoch=0):
           for inputs, labels in cool_progress_bar:
               inputs, labels = inputs.to(device), labels.to(device)
               outputs = model(inputs)
-              loss = criterion(outputs, labels)
+              loss = criterion(outputs, labels.unsqueeze(1).float())
               running_loss += loss.item() * inputs.size(0)
               _, predicted = torch.max(outputs, 1)
               total += labels.size(0)
