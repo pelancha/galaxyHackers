@@ -316,8 +316,6 @@ def create_dataloader():
 
     print(f'There are {len(class_names)} classes\nSize of train is {dataset_sizes["train"]}\n\tvalidation is {dataset_sizes["val"]}\n\ttest_dr5 is {dataset_sizes["test_dr5"]}\n\ttest_macdows is {dataset_sizes["test_macdows"]}')
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     # Get a batch of training data
     inputs, classes = next(iter(dataloaders['train']))
 
@@ -326,4 +324,4 @@ def create_dataloader():
 
     imshow(out)
 
-    return device, dataloaders
+    return dataloaders
