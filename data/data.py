@@ -1,3 +1,6 @@
+'''Script to get dataloaders'''
+'''To create dataloaders you need to adress only function create_dataloader()'''
+
 import legacy_for_img
 import os
 import sys
@@ -18,17 +21,22 @@ import astropy.coordinates as coord
 from sklearn.model_selection import train_test_split
 from os.path import exists
 
+'''Randomiser for sample from MaDCoWs'''
+
 def createNegativeClassRac(x):
     randChoice = np.random.normal(-15, 15)
     while (x + randChoice) > 360 or (x + randChoice) < 0:
       randChoice = np.random.normal(-15, 15)
     return x + randChoice
 
+
 def createNegativeClassDec(x):
     randChoice = np.random.normal(-15, 15)
     while (x + randChoice) > 90 or (x + randChoice) < -90:
         randChoice = np.random.normal(-15, 15)
     return x + randChoice
+
+'''Obtain ACT_DR5, clusters identifies there and in MaDCoWs'''
 
 def read_dr5():
     if not os.path.exists(mapACT_out):
@@ -40,6 +48,7 @@ def read_dr5():
     dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
 
     return dr5
+
 
 def readMC():
     # the catalogue of MaCDoWs in VizieR
@@ -56,13 +65,17 @@ def readMC():
 
     return madCows_table
 
+'''Concat clusters from act_dr5 and madcows to create negative classes in samples'''
+
 def toHmsFormat(time_str):
     parts = time_str.split()
     return f"{parts[0]}h{parts[1]}m{parts[2]}s"
 
+
 def toDmsFormat(time_str):
     parts = time_str.split()
     return f"{parts[0]}d{parts[1]}m{parts[2]}s"
+
 
 def concat_tables():
     madCows_table = readMC()
@@ -80,6 +93,8 @@ def concat_tables():
         }
     )
     return clustersDr5_MC
+
+"""Create sample from dr5 clsuter catalogue"""
 
 def createNegativeClassDR5():
     clustersDr5_MC = concat_tables()
@@ -106,13 +121,14 @@ def createNegativeClassDR5():
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)
             name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(dr5): # instead of dr5?
+            if len(ra) == len(dr5):
                 break
 
     n = len(ra)
 
     dfNegativeFromDr5 = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
     return dfNegativeFromDr5
+
 
 def create_data_dr5():
     clusters = read_dr5()
@@ -126,6 +142,7 @@ def create_data_dr5():
 
     return data_dr5
 
+"""Create sample from MadCows catalogue"""
 
 def createNegativeClassMC(radegMC, decdegMC):
     clustersDr5_MC = concat_tables()
@@ -147,7 +164,7 @@ def createNegativeClassMC(radegMC, decdegMC):
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)
             name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(radegMC): # number of macdows clusters.
+            if len(ra) == len(radegMC): # number of macdows clusters
                 break
 
     n = len(ra)
@@ -155,6 +172,7 @@ def createNegativeClassMC(radegMC, decdegMC):
     dfNegativeFromMacdows = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
 
     return dfNegativeFromMacdows
+
 
 def create_data_macdows():
     madCows_table = readMC()
@@ -167,6 +185,7 @@ def create_data_macdows():
     data_macdows = pd.concat([clusters, random]).reset_index(drop=True)
     return data_macdows
 
+"""Split samples into train, validation and tests and get pictures from legacy survey"""
 
 def train_val_test_split():
     data_dr5 = create_data_dr5()
@@ -206,6 +225,7 @@ def train_val_test_split():
     list_test_dr5, list_test_MC = [test_dr5_0, test_dr5_1], [test_macdows_0, test_macdows_1]
     return list_train, list_val, list_test_dr5, list_test_MC
 
+
 def ddos():
     list_train, list_val, list_test_dr5, list_test_MC = train_val_test_split()
     train_0, train_1 = list_train
@@ -220,14 +240,7 @@ def ddos():
         output_dir = f'{working_path}{location}{subfolder_name}'
         legacy_for_img.grab_cutouts(target_file=subfolder, output_dir=output_dir, survey='unwise-neo7', imgsize_pix=224, file_format='jpg')
 
-
-    # data_macdows = create_data_macdows()
-    # for type_ in [0, 1]:
-    #     test_macdows_subset = data_macdows[data_macdows.target == type_].reset_index(drop=True)
-    #     output_dir = f'{working_path}{location}test_macdows/{type_}'
-    #     legacy_for_img.grab_cutouts(target_file=test_macdows_subset, output_dir=output_dir, survey='unwise-neo7',
-    #                                 imgsize_pix=224, file_format='jpg')
-    #
+"""Create dataloaders"""
 
 def imshow(inp, title=None):
     """Imshow for Tensor."""
@@ -241,6 +254,7 @@ def imshow(inp, title=None):
         plt.title(title)
     plt.axis('off')
     plt.pause(0.001)  # pause a bit so that plots are updated
+
 
 def create_dataloader():
     ddos()
@@ -297,7 +311,8 @@ def create_dataloader():
 
     return dataloaders
 
-# constant paths
+
+'''constant paths'''
 working_path = "./"
 mapACT = "act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits"
 dr5_clusters = "DR5_cluster-catalog_v1.1.fits"
@@ -309,7 +324,7 @@ dr5_clusters_url = archieve_dr5 + dr5_clusters
 mapACT_out = working_path + mapACT
 dr5_clusters_out = working_path + dr5_clusters
 
-# change if needed
+'''change if needed'''
 location = "data/Data224/"
 dr5_out_file = "dr5_table.csv"
 madCows_out_file = "madCows_table.csv"
