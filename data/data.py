@@ -1,4 +1,3 @@
-#not yet tested
 import legacy_for_img
 import os
 import sys
@@ -34,10 +33,8 @@ def createNegativeClassDec(x):
 def read_dr5():
     if not os.path.exists(mapACT_out):
         wget.download(url=mapACT_url, out=mapACT_out)
-
     if not os.path.exists(dr5_clusters_out):
         wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
-
 
     dr5 = atpy.Table().read(dr5_clusters_out).to_pandas().reset_index(drop=True)
     dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
@@ -60,34 +57,21 @@ def readMC():
     return madCows_table
 
 def toHmsFormat(time_str):
-    hours, minutes, seconds = map(int, time_str.split())
-    return f"{hours}h{minutes}m{seconds}s"
+    parts = time_str.split()
+    return f"{parts[0]}h{parts[1]}m{parts[2]}s"
 
 def toDmsFormat(time_str):
-    degrees, minutes, seconds = map(int, time_str.split())
-    return f"{degrees}d{minutes}m{seconds}s"
+    parts = time_str.split()
+    return f"{parts[0]}d{parts[1]}m{parts[2]}s"
 
 def concat_tables():
-    dr5_out = f"{working_path}{dr5_out_file}"
-    madCows_out = f"{working_path}{madCows_out_file}"
+    madCows_table = readMC()
+    dr5 = read_dr5()
+    radegDr5 = dr5.loc[:, "RADeg"]
+    decdegDr5 = dr5.loc[:, "decDeg"]
 
-    if os.path.exists(dr5_out):
-        dr5 = pd.read_csv(dr5_out)
-    else:
-        dr5 = read_dr5()
-        radegDr5 = dr5.loc[:, "RADeg"]
-        decdegDr5 = dr5.loc[:, "decDeg"]
-        dr5.to_csv(dr5_out, index=False)
-
-    if os.path.exists(madCows_out):
-        madCows_table = pd.read_csv(madCows_out)
-    else:
-        madCows_table = readMC()
-        radegMC = madCows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
-        decdegMC = madCows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
-        madCows_table.to_csv(madCows_out, index=False)
-
-
+    radegMC = madCows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
+    decdegMC = madCows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
     clustersDr5_MC = pd.DataFrame(
         {
             'name': pd.concat([dr5['name'], madCows_table['Name']], ignore_index=True),
@@ -95,12 +79,11 @@ def concat_tables():
             'decDeg': pd.concat([decdegDr5, decdegMC], ignore_index=True)
         }
     )
-
     return clustersDr5_MC
 
 def createNegativeClassDR5():
     clustersDr5_MC = concat_tables()
-
+    dr5 = read_dr5()
     imap_98 = enmap.read_fits(f"{working_path}{mapACT}")[0]
 
     positions = np.array(np.rad2deg(imap_98.posmap()))
@@ -330,4 +313,3 @@ dr5_clusters_out = working_path + dr5_clusters
 location = "data/Data224/"
 dr5_out_file = "dr5_table.csv"
 madCows_out_file = "madCows_table.csv"
-
