@@ -1,4 +1,4 @@
-#NOT YET TESTED
+#not yet tested
 import legacy_for_img
 import os
 import sys
@@ -230,7 +230,6 @@ def ddos():
     test_dr5_0, test_dr5_1 = list_test_dr5
     test_macdows_0, test_macdows_1 = list_test_MC
 
-    work_path = '/content/'
     folders = [(train_0, 'train/0'), (train_1, 'train/1'), (val_0, 'val/0'), (val_1, 'val/1'),
                (test_dr5_0, 'test_dr5/0'), (test_dr5_1, 'test_dr5/1'), (test_macdows_0, 'test_macdows/0'),
                (test_macdows_1, 'test_macdows/1')]
