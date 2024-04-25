@@ -40,19 +40,28 @@ def train(model, train_loader, criterion, optimizer, device, num_epochs, start_e
         losses.append(epoch_loss)
         accuracies.append(epoch_acc)
         epochs.append(epoch + 1)
-
+        
         os.makedirs(models_epoch, exist_ok=True)
-        torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'loss': epoch_loss, 'accuracy': epoch_acc}, f'{models_epoch}{model.__class__.__name__}_epoch_{epoch + 1}.pth')
+
+        epoch_data = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': epoch_loss,
+            'accuracy': epoch_acc
+        }
+        
+        torch.save(epoch_data, f'{models_epoch}{model.__class__.__name__}_epoch_{epoch + 1}.pth')
 
         if epoch_loss < best_loss:
             best_loss, best_accuracy = epoch_loss, epoch_acc
             best_model_weights = copy.deepcopy(model.state_dict())
-            torch.save(best_model_weights, 'best_model_weights.pth')
+            torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_weights.pth')
 
     os.makedirs(models_state_dict, exist_ok=True)
     model.load_state_dict(best_model_weights)
-    torch.save(model.state_dict(), f'{models_state_dict}{model.__class__.__name__}_weight.pth')
-    torch.save(model, models_state_dict + f'{model.__class__.__name__}.pth')
+    torch.save(epoch_data, f'{models_state_dict}/{model.__class__.__name__}_weights.pth')
+    torch.save(model, f'{models_state_dict}/{model.__class__.__name__}.pth')
 
 
     time_elapsed = time.time() - since
