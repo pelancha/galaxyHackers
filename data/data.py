@@ -1,5 +1,5 @@
 '''Script to get dataloaders'''
-'''To create dataloaders you need to adress only function create_dataloader()'''
+'''To create dataloaders you need to adress only function create_dataloaders()'''
 
 import legacy_for_img
 import os
