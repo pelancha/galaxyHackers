@@ -17,26 +17,20 @@ from astroquery.vizier import Vizier
 from pixell import enmap
 from astropy import units as u
 from astropy.coordinates import Angle
-import astropy.coordinates as coord
 from sklearn.model_selection import train_test_split
 from os.path import exists
+from astroquery.gaia import Gaia
 
-'''Randomiser for sample from MaDCoWs'''
+'''Obtain GAIA stars catalogue'''
 
-def createNegativeClassRac(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 360 or (x + randChoice) < 0:
-      randChoice = np.random.normal(-15, 15)
-    return x + randChoice
+def read_gaia():
+    job = Gaia.launch_job_async("select * from gaiadr3.gaia_source "
+                                "where random_index between 0 and 1000000 and phot_g_mean_mag < 12 and parallax is not null")
+    gaiaResponse = job.get_results().to_pandas()
+    data_gaia = gaiaResponse.sample(n=1000).reset_index(drop=True).rename(columns={"DESIGNATION": "Component_name", "ra": "RA", "dec": "DEC"})
+    return data_gaia
 
-
-def createNegativeClassDec(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 90 or (x + randChoice) < -90:
-        randChoice = np.random.normal(-15, 15)
-    return x + randChoice
-
-'''Obtain ACT_DR5, clusters identifies there and in MaDCoWs'''
+'''Obtain ACT_DR5, clusters identified there and in MaDCoWS'''
 
 def read_dr5():
     if not os.path.exists(mapACT_out):
@@ -51,7 +45,7 @@ def read_dr5():
 
 
 def readMC():
-    # the catalogue of MaCDoWs in VizieR
+    # the catalogue of MaDCoWS in VizieR
     CATALOGUE = "J/ApJS/240/33/"
 
     catalog_list = Vizier.find_catalogs(CATALOGUE)
@@ -60,10 +54,10 @@ def readMC():
     catalogs = Vizier.get_catalogs(catalog_list.keys())
 
     interesting_table = catalogs[CATALOGUE + "table3"]
-    madCows_table = interesting_table.to_pandas().reset_index(drop=True)
-    madCows_table = madCows_table.iloc[:, [1, 2, 3]]
+    madcows_table = interesting_table.to_pandas().reset_index(drop=True)
+    madcows_table = madcows_table.iloc[:, [1, 2, 3]]
 
-    return madCows_table
+    return madcows_table
 
 '''Concat clusters from act_dr5 and madcows to create negative classes in samples'''
 
@@ -78,16 +72,16 @@ def toDmsFormat(time_str):
 
 
 def concat_tables():
-    madCows_table = readMC()
+    madcows_table = readMC()
     dr5 = read_dr5()
     radegDr5 = dr5.loc[:, "RADeg"]
     decdegDr5 = dr5.loc[:, "decDeg"]
 
-    radegMC = madCows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
-    decdegMC = madCows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
+    radegMC = madcows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
+    decdegMC = madcows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
     clustersDr5_MC = pd.DataFrame(
         {
-            'name': pd.concat([dr5['name'], madCows_table['Name']], ignore_index=True),
+            'name': pd.concat([dr5['name'], madcows_table['Name']], ignore_index=True),
             'RADeg': pd.concat([radegDr5, radegMC], ignore_index=True),
             'decDeg': pd.concat([decdegDr5, decdegMC], ignore_index=True)
         }
@@ -142,6 +136,21 @@ def create_data_dr5():
 
     return data_dr5
 
+'''Randomiser for sample from MaDCoWS'''
+
+def createNegativeClassRac(x):
+    randChoice = np.random.normal(-15, 15)
+    while (x + randChoice) > 360 or (x + randChoice) < 0:
+      randChoice = np.random.normal(-15, 15)
+    return x + randChoice
+
+
+def createNegativeClassDec(x):
+    randChoice = np.random.normal(-15, 15)
+    while (x + randChoice) > 90 or (x + randChoice) < -90:
+        randChoice = np.random.normal(-15, 15)
+    return x + randChoice
+
 """Create sample from MadCows catalogue"""
 
 def createNegativeClassMC(radegMC, decdegMC):
@@ -164,35 +173,34 @@ def createNegativeClassMC(radegMC, decdegMC):
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)
             name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(radegMC): # number of macdows clusters
+            if len(ra) == len(radegMC): # number of madcows clusters
                 break
 
     n = len(ra)
 
-    dfNegativeFromMacdows = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
+    dfNegativeFromMadcows = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
 
-    return dfNegativeFromMacdows
+    return dfNegativeFromMadcows
 
-
-def create_data_macdows():
-    madCows_table = readMC()
-    radegMC = madCows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
-    decdegMC = madCows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
-    clusters = pd.DataFrame({'Component_name': madCows_table['Name'], 'RA': radegMC, 'DEC': decdegMC})
+def create_data_madcows():
+    madcows_table = readMC()
+    radegMC = madcows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
+    decdegMC = madcows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
+    clusters = pd.DataFrame({'Component_name': madcows_table['Name'], 'RA': radegMC, 'DEC': decdegMC})
     clusters['target'] = 1
     random = createNegativeClassMC(radegMC, decdegMC)
     random['target'] = 0
-    data_macdows = pd.concat([clusters, random]).reset_index(drop=True)
-    return data_macdows
+    data_madcows = pd.concat([clusters, random]).reset_index(drop=True)
+    return data_madcows
 
 """Split samples into train, validation and tests and get pictures from legacy survey"""
 
 def train_val_test_split():
     data_dr5 = create_data_dr5()
-    data_macdows = create_data_macdows()
+    data_madcows = create_data_madcows()
 
     folderlocation = f'{working_path}{location}'
-    folders = ['train', 'val', 'test_dr5', 'test_macdows']
+    folders = ['train', 'val', 'test_dr5', 'test_madcows']
 
     for folder in folders:
         path = os.path.join(folderlocation, folder)
@@ -218,11 +226,11 @@ def train_val_test_split():
     test_dr5_0 = test_dr5[test_dr5.target == 0].reset_index(drop=True)
     test_dr5_1 = test_dr5[test_dr5.target == 1].reset_index(drop=True)
 
-    test_macdows_0 = data_macdows[data_macdows.target == 0].reset_index(drop=True)
-    test_macdows_1 = data_macdows[data_macdows.target == 1].reset_index(drop=True)
+    test_madcows_0 = data_madcows[data_madcows.target == 0].reset_index(drop=True)
+    test_madcows_1 = data_madcows[data_madcows.target == 1].reset_index(drop=True)
 
     list_train, list_val = [train_0, train_1], [val_0, val_1]
-    list_test_dr5, list_test_MC = [test_dr5_0, test_dr5_1], [test_macdows_0, test_macdows_1]
+    list_test_dr5, list_test_MC = [test_dr5_0, test_dr5_1], [test_madcows_0, test_madcows_1]
     return list_train, list_val, list_test_dr5, list_test_MC
 
 
@@ -231,11 +239,11 @@ def ddos():
     train_0, train_1 = list_train
     val_0, val_1 = list_val
     test_dr5_0, test_dr5_1 = list_test_dr5
-    test_macdows_0, test_macdows_1 = list_test_MC
+    test_madcows_0, test_madcows_1 = list_test_MC
 
     folders = [(train_0, 'train/0'), (train_1, 'train/1'), (val_0, 'val/0'), (val_1, 'val/1'),
-               (test_dr5_0, 'test_dr5/0'), (test_dr5_1, 'test_dr5/1'), (test_macdows_0, 'test_macdows/0'),
-               (test_macdows_1, 'test_macdows/1')]
+               (test_dr5_0, 'test_dr5/0'), (test_dr5_1, 'test_dr5/1'), (test_madcows_0, 'test_madcows/0'),
+               (test_madcows_1, 'test_madcows/1')]
     for subfolder, subfolder_name in folders:
         output_dir = f'{working_path}{location}{subfolder_name}'
         legacy_for_img.grab_cutouts(target_file=subfolder, output_dir=output_dir, survey='unwise-neo7', imgsize_pix=224, file_format='jpg')
@@ -256,7 +264,7 @@ def imshow(inp, title=None):
     plt.pause(0.001)  # pause a bit so that plots are updated
 
 
-def create_dataloader():
+def create_dataloaders():
     ddos()
 
     data_transforms = {
@@ -277,7 +285,7 @@ def create_dataloader():
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
         ]),
-          'test_macdows': transforms.Compose([
+          'test_madcows': transforms.Compose([
         transforms.Resize((224,224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
@@ -289,16 +297,16 @@ def create_dataloader():
     # data_dir = folderlocation
     image_datasets = {x: datasets.ImageFolder(os.path.join(folderlocation, x),
                                               data_transforms[x])
-                      for x in ['train', 'val', 'test_dr5', 'test_macdows']}
+                      for x in ['train', 'val', 'test_dr5', 'test_madcows']}
     dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=64,
                                                  shuffle=True, num_workers=3)
-                  for x in ['train', 'val', 'test_dr5', 'test_macdows']}
+                  for x in ['train', 'val', 'test_dr5', 'test_madcows']}
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test_dr5', 'test_macdows']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test_dr5', 'test_madcows']}
 
     class_names = image_datasets['train'].classes
 
-    print(f'There are {len(class_names)} classes\nSize of train is {dataset_sizes["train"]}\n\tvalidation is {dataset_sizes["val"]}\n\ttest_dr5 is {dataset_sizes["test_dr5"]}\n\ttest_macdows is {dataset_sizes["test_macdows"]}')
+    print(f'There are {len(class_names)} classes\nSize of train is {dataset_sizes["train"]}\n\tvalidation is {dataset_sizes["val"]}\n\ttest_dr5 is {dataset_sizes["test_dr5"]}\n\ttest_madcows is {dataset_sizes["test_madcows"]}')
 
 
     # Get a batch of training data
@@ -327,4 +335,4 @@ dr5_clusters_out = working_path + dr5_clusters
 '''change if needed'''
 location = "data/Data224/"
 dr5_out_file = "dr5_table.csv"
-madCows_out_file = "madCows_table.csv"
+madcows_out_file = "madcows_table.csv"
