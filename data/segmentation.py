@@ -1,9 +1,7 @@
 import legacy_for_img
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from PIL import Image
 import timm
 import torch
@@ -12,10 +10,10 @@ from torch.utils.data import Dataset, DataLoader
 import astropy.coordinates as coord
 from astropy import units as u
 import os
-
 import matplotlib as mpl
 from matplotlib import cm
 import data
+
 
 class ImageSet(Dataset):
     def __init__(self, dir, transform=None):
@@ -39,10 +37,11 @@ class ImageSet(Dataset):
 
         return image
 
+
 def predict_folder(folder, device='cuda:0'): #+ input - model (str) for
     model_ft = timm.create_model('resnet18', pretrained=True, num_classes=1) #make it possible to change model
     model = model_ft.to(device)
-    loaded_model = torch.load('/content/ResNet_epoch_20.pth', map_location=device) #change name according to interesting epoch
+    loaded_model = torch.load('./ResNet_epoch_20.pth', map_location=device) #change name according to interesting epoch
     model.load_state_dict(loaded_model["model_state_dict"])
     model.eval()
 
@@ -66,16 +65,32 @@ def predict_folder(folder, device='cuda:0'): #+ input - model (str) for
     # return np.array(probs)
     return np.array(probs)
 
-def predict_dr5_tests(): #+ input - model (str) for predict_folder
+'''As pictures of stars from GAIA are not used in training, they should be obtained here'''
+
+def prepare_gaia():
+    data_gaia = data.read_gaia()
+    folderlocation = './data/Data224/'
+    path = folderlocation + 'test_gaia'
+    os.makedirs(path, exist_ok=True)
+
+    legacy_for_img.grab_cutouts(target_file=data_gaia, output_dir=path,
+                                          survey='unwise-neo7', imgsize_pix = 224*8, file_format='jpg' )
+    return data_gaia
+
+
+def predict_tests(): #+ input - model (str) for predict_folder
     test_dr_0, test_dr_1 = data.train_val_test_split()[2]
+    gaia = prepare_gaia()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     clust = test_dr_1
-    clust['prob'] = predict_folder('/content/data/Data224/test_dr5/1', device=device)
+    clust['prob'] = predict_folder('./data/Data224/test_dr5/1', device=device)
     rand = test_dr_0
-    rand['prob'] = predict_folder('/content/data/Data224/test_dr5/0', device=device)
+    rand['prob'] = predict_folder('./data/Data224/test_dr5/0', device=device)
 
-    return clust, rand
+    gaia['prob'] =  predict_folder('./data/Data224/test_gaia', device=device)
+    return clust, rand, gaia
+
 
 def create_samples(): #+ input - model (str) for predict_folder
     folderlocation = './data/example/'
@@ -89,6 +104,9 @@ def create_samples(): #+ input - model (str) for predict_folder
     path = folderlocation + 'R/'
     os.makedirs(path, exist_ok=True)
 
+    path = folderlocation + 'GAIA/'
+    os.makedirs(path, exist_ok=True)
+
     for iter1 in range(5):    # 100 = number of classes
         path = folderlocation + 'Cl/'+str(iter1)
         os.makedirs(path, exist_ok=True)
@@ -96,7 +114,10 @@ def create_samples(): #+ input - model (str) for predict_folder
         path = folderlocation + 'R/'+str(iter1)
         os.makedirs(path, exist_ok=True)
 
-    clust, rand = predict_dr5_tests()
+        path = folderlocation + 'GAIA/'+str(iter1)
+        os.makedirs(path, exist_ok=True)
+
+    clust, rand, gaia = predict_tests()
 
     r5 = rand.sample(5, random_state=5).reset_index(drop=True)
     max_ra = r5['RA'].max()
@@ -118,6 +139,19 @@ def create_samples(): #+ input - model (str) for predict_folder
         max_ra = cl5['RA'].max()
         max_de = cl5['DEC'].max()
     cl5.to_csv('./data/example/cl5.csv',index=False)
+
+    gaia5 = gaia.sample(5, random_state=5).reset_index(drop=True)
+    max_ra = gaia5['RA'].max()
+    max_de = gaia5['DEC'].max()
+    required_space = 15 / 60 #15 minutes including shift
+    # print(max_ra, max_de)
+
+    while (max_ra + required_space) > 360 or (max_de - required_space) < -90:
+        gaia5 = gaia.sample(5).reset_index(drop=True)
+        max_ra = gaia5['RA'].max()
+        max_de = gaia5['DEC'].max()
+    gaia5.to_csv('./data/example/gaia5.csv',index=False)
+
 
 def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps, 1 - for a big one
     match id:
@@ -180,10 +214,12 @@ def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps,
             # print(data)
             # return data.shape
 
+
 def formSegmentationMaps():
     create_samples() #returns csvs
     cl5 = pd.read_csv('./data/example/cl5.csv')
     r5 =  pd.read_csv('./data/example/r5.csv')
+    gaia5 = pd.read_csv('./data/example/gaia5.csv')
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -198,6 +234,12 @@ def formSegmentationMaps():
     createSegMap(0, r5.loc[2, 'RA'], r5.loc[2, 'DEC'], r5.loc[2, 'Component_name'], dire = './data/example/R/2')
     createSegMap(0, r5.loc[3, 'RA'], r5.loc[3, 'DEC'], r5.loc[3, 'Component_name'], dire = './data/example/R/3')
     createSegMap(0, r5.loc[4, 'RA'], r5.loc[4, 'DEC'], r5.loc[4, 'Component_name'], dire = './data/example/R/4')
+
+    createSegMap(0, gaia5.loc[0, 'RA'], gaia5.loc[0, 'DEC'], gaia5.loc[0, 'Component_name'], dire = './data/example/GAIA/0')
+    createSegMap(0, gaia5.loc[1, 'RA'], gaia5.loc[1, 'DEC'], gaia5.loc[1, 'Component_name'], dire = './data/example/GAIA/1')
+    createSegMap(0, gaia5.loc[2, 'RA'], gaia5.loc[2, 'DEC'], gaia5.loc[2, 'Component_name'], dire = './data/example/GAIA/2')
+    createSegMap(0, gaia5.loc[3, 'RA'], gaia5.loc[3, 'DEC'], gaia5.loc[3, 'Component_name'], dire = './data/example/GAIA/3')
+    createSegMap(0, gaia5.loc[4, 'RA'], gaia5.loc[4, 'DEC'], gaia5.loc[4, 'Component_name'], dire = './data/example/GAIA/4')
 
     prob_clust0 = predict_folder('./data/example/Cl/0', device=device)
     prob_clust1 = predict_folder('./data/example/Cl/1', device=device)
@@ -215,23 +257,36 @@ def formSegmentationMaps():
 
     prob_randoms = [prob_r0, prob_r1, prob_r2, prob_r3, prob_r4]
 
-    return prob_clusters, prob_randoms
+    prob_gaia0 = predict_folder('./data/example/GAIA/0', device=device)
+    prob_gaia1 = predict_folder('./data/example/GAIA/1', device=device)
+    prob_gaia2 = predict_folder('./data/example/GAIA/2', device=device)
+    prob_gaia3 = predict_folder('./data/example/GAIA/3', device=device)
+    prob_gaia4 = predict_folder('./data/example/GAIA/4', device=device)
+
+    prob_gaia = [prob_gaia0, prob_gaia1, prob_gaia2, prob_gaia3, prob_gaia4]
+
+    return prob_clusters, prob_randoms, prob_gaia
+
 
 def printSegMaps():
-    prob_clusters, prob_randoms = formSegmentationMaps()
+    prob_clusters, prob_randoms, prob_gaia = formSegmentationMaps()
 
-    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(10, 4))
+    fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(10, 6))
 
     for i in range(len(prob_clusters)):
         ax[0, i].imshow(prob_clusters[i].reshape(20,20), cmap = cm.Blues)
 
     ax[0, 2].set_title('Clusters')
     ax[1, 2].set_title('Random')
+    ax[2, 2].set_title('Stars')
 
     for i in range(len(prob_randoms)):
         ax[1, i].imshow(prob_randoms[i].reshape(20,20), cmap = cm.Blues)
 
-    for j in range(2):
+    for i in range(len(prob_gaia)):
+        ax[2, i].imshow(prob_gaia[i].reshape(20,20), cmap = cm.Blues)
+
+    for j in range(3):
         for i in range(5):
             ax[j, i].axis('off')
             ax[j, i].plot(10, 10, 'x', ms=7, color='red')
