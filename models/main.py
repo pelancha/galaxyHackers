@@ -16,7 +16,7 @@ import spinalnet_resnet
 import spinalnet_vgg
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-dataloader = data.create_dataloader()
+dataloader = data.create_dataloaders()
 train_loader = dataloader['train']
 val_loader = dataloader['val']
 
