@@ -17,6 +17,8 @@ import spinalnet_vgg
 import vitL16
 import alexnet_vgg
 
+import torch_optimizer as optimizer
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 dataloader = data.create_dataloaders()
 train_loader = dataloader['train']
@@ -35,12 +37,24 @@ models = [
     ('AlexNet_VGG', alexnet_vgg.load_model())
 ]
 
+optimizers = [
+    ('SGD', optim.SGD),
+    ('Adam', optim.Adam),
+    ('Adagrad', optim.Adagrad),
+    ('RMSprop', optim.RMSprop),
+    ('Adadelta', optim.Adadelta),
+    ('AdamW', optim.AdamW),
+    ('DiffGrad', optimizer.DiffGrad),
+    ('LBFGS', optim.LBFGS)
+]
+
 parser = argparse.ArgumentParser(description='Model training')
 parser.add_argument('--models', nargs='+', default=['ResNet18', 'ResNet50', 'EfficientNet', 'ViT', 'VGGNet', 'DenseNet', 'SpinalNet_ResNet', 'SpinalNet_VGG', 'ViTL16', 'AlexNet_VGG'],
                     help='List of models to train (default: all)')
 parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train (default: 5)')
 parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for optimizer (default: 0.0001)')
 parser.add_argument('--mm', type=float, default=0.9, help='Momentum for optimizer (default: 0.9)')
+parser.add_argument('--optimizer', choices=[name for name, _ in optimizers], default='Adam', help='Optimizer to use (default: Adam)')
 
 args = parser.parse_args()
 
@@ -49,6 +63,7 @@ selected_models = [(model_name, model) for model_name, model in models if model_
 num_epochs = args.epochs
 lr = args.lr
 momentum = args.mm
+optimizer = args.optimizer
 
 # criterion = nn.CrossEntropyLoss()
 
@@ -57,8 +72,8 @@ criterion = nn.BCELoss()
 results = {}
 val_results = {}
 for model_name, model in selected_models:
-    # optimizer = torch.optim.Adam(model.parameters(), lr)
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+    optimizer_class = dict(optimizers)[optimizer]
+    optimizer = optimizer_class(model.parameters(), lr=lr, momentum=momentum) if optimizer in ['SGD', 'RMSprop'] else optimizer_class(model.parameters(), lr=lr)
 
     losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs)
     results[model_name] = {'losses': losses, 'epochs': epochs, 'accuracies': accuracies}
