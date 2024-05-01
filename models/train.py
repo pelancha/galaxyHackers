@@ -31,10 +31,11 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
-            _, predicted = torch.max(outputs, 1)
+            predicted = (outputs > 0.5).float()
             total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            correct += (predicted == labels.unsqueeze(1).float()).sum().item()
             cool_progress_bar.set_postfix(loss=running_loss / len(train_loader.dataset), acc=correct / total)
+
         epoch_loss = running_loss / len(train_loader.dataset)
         epoch_acc = correct / total
         losses.append(epoch_loss)
@@ -47,6 +48,16 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
             best_loss, best_accuracy = val_loss, val_acc
             best_model_weights = copy.deepcopy(model.state_dict())
             torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_weights.pth')
+
+            os.makedirs(models_epoch, exist_ok=True)
+
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_loss': epoch_loss,
+                'best_accuracy': epoch_acc
+            }, f'{models_epoch}/{model.__class__.__name__}_epoch_{epoch + 1}.pth')
 
     os.makedirs(models_state_dict, exist_ok=True)
     model.load_state_dict(best_model_weights)
@@ -71,10 +82,9 @@ def validate(model, val_loader, criterion, device):
             outputs = model(inputs)
             loss = criterion(outputs, labels.unsqueeze(1).float())
             val_losses.append(loss.item())
-            _, predicted = torch.max(outputs, 1)
+            predicted = (outputs > 0.5).float()
             total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
+            correct += (predicted == labels.unsqueeze(1).float()).sum().item()
     val_loss = sum(val_losses) / len(val_loader.dataset)
     val_accuracy = correct / total
 
