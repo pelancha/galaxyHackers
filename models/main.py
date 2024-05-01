@@ -14,6 +14,8 @@ from plot_builder import plot_losses, plot_accuracies
 
 import spinalnet_resnet
 import spinalnet_vgg
+import vitL16
+import alexnet_vgg
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 dataloader = data.create_dataloaders()
@@ -28,11 +30,13 @@ models = [
     ('VGGNet', timm.create_model('vgg11', pretrained=True, num_classes=1)),
     ('DenseNet', timm.create_model('densenet121', pretrained=True, num_classes=1)),
     ('SpinalNet_ResNet', spinalnet_resnet.load_model()),
-    ('SpinalNet_VGG', spinalnet_vgg.load_model())
+    ('SpinalNet_VGG', spinalnet_vgg.load_model()),
+    ('ViTL16', vitL16.load_model()),
+    ('AlexNet_VGG', alexnet_vgg.load_model())
 ]
 
 parser = argparse.ArgumentParser(description='Model training')
-parser.add_argument('--models', nargs='+', default=['ResNet18', 'ResNet50', 'EfficientNet', 'ViT', 'VGGNet', 'DenseNet', 'SpinalNet_ResNet', 'SpinalNet_VGG'],
+parser.add_argument('--models', nargs='+', default=['ResNet18', 'ResNet50', 'EfficientNet', 'ViT', 'VGGNet', 'DenseNet', 'SpinalNet_ResNet', 'SpinalNet_VGG', 'ViTL16', 'AlexNet_VGG'],
                     help='List of models to train (default: all)')
 parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train (default: 5)')
 parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for optimizer (default: 0.0001)')
@@ -86,4 +90,3 @@ for model_name, data in results.items():
 # print("Stats for nerds")
 # print(f"Max loss: {np.max(losses)} \nAverage loss: {np.mean(losses)} \nMin loss: {np.min(losses)} \n\nMax accuracy: {np.max(accuracies)} \nAverage accuracy: {np.mean(accuracies)} \nMin accuracy: {np.min(accuracies)}")
 # print(f"\nLoss std: {np.std(losses)} \nAccuracy std: {np.std(accuracies)}")
-
