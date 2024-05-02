@@ -49,15 +49,15 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
             best_model_weights = copy.deepcopy(model.state_dict())
             torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_weights.pth')
 
-            os.makedirs(models_epoch, exist_ok=True)
+        os.makedirs(models_epoch, exist_ok=True)
 
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'best_loss': epoch_loss,
-                'best_accuracy': epoch_acc
-            }, f'{models_epoch}/{model.__class__.__name__}_epoch_{epoch + 1}.pth')
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_loss': epoch_loss,
+            'best_accuracy': epoch_acc
+        }, f'{models_epoch}/{model.__class__.__name__}_epoch_{epoch + 1}.pth')
 
     os.makedirs(models_state_dict, exist_ok=True)
     model.load_state_dict(best_model_weights)
