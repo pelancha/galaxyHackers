@@ -24,7 +24,7 @@ from astroquery.gaia import Gaia
 '''Obtain GAIA stars catalogue'''
 
 def read_gaia():
-    job = Gaia.launch_job_async("select * from gaiadr3.gaia_source "
+    job = Gaia.launch_job_async("select DESIGNATION, ra, dec from gaiadr3.gaia_source "
                                 "where random_index between 0 and 1000000 and phot_g_mean_mag < 12 and parallax is not null")
     gaiaResponse = job.get_results().to_pandas()
     data_gaia = gaiaResponse.sample(n=1000).reset_index(drop=True).rename(columns={"DESIGNATION": "Component_name", "ra": "RA", "dec": "DEC"})
