@@ -83,3 +83,10 @@ def modelPerfomance(model, mHistory, y_train_target, y_train_predicted, y_train_
 
     plot_roc_curve(y_train_target, y_train_classified)
     plot_precision_recall(y_train_target, y_train_classified)
+
+    # weighted confusion matrix
+    e_00, e_11 = cm[0, 0] / (cm[0, 0] + cm[0, 1]), cm[1, 1] / (cm[1, 0] + cm[1, 1])
+    weighted_confusion_matrix = np.array([[e_00, 1 - e_00], [1 - e_11, e_11]])
+
+    w_cmDisp = ConfusionMatrixDisplay(confusion_matrix=weighted_confusion_matrix, display_labels=classes).plot()
+    plt.show()
