@@ -37,12 +37,22 @@ class ImageSet(Dataset):
 
         return image
 
+'''As pictures of stars from GAIA are not used in training, they should be obtained here'''
 
-def predict_folder(folder, device='cuda:0'): #+ input - model (str) for
-    model_ft = timm.create_model('resnet18', pretrained=True, num_classes=1) #make it possible to change model
-    model = model_ft.to(device)
-    loaded_model = torch.load('./ResNet_epoch_20.pth', map_location=device) #change name according to interesting epoch
-    model.load_state_dict(loaded_model["model_state_dict"])
+def prepare_gaia():
+    data_gaia = data.read_gaia()
+    path = samples_location + 'test_gaia'
+    os.makedirs(path, exist_ok=True)
+
+    legacy_for_img.grab_cutouts(target_file=data_gaia, output_dir=path,
+                                          survey='unwise-neo7', imgsize_pix = 224*8, file_format='jpg' )
+    return data_gaia
+
+
+def predict_folder(folder, model, device='cuda:0'):
+    model = model.to(device)
+    loaded_model = torch.load(f"{working_path}state_dict/{model.__class__.__name__}_weights.pth", map_location=device)
+    model.load_state_dict(loaded_model)
     model.eval()
 
     trans = transforms.Compose([
@@ -62,22 +72,25 @@ def predict_folder(folder, device='cuda:0'): #+ input - model (str) for
         #model prediction
         outputs = model(img)
         probs = np.append(probs, outputs.data.cpu().detach().numpy())
-    # return np.array(probs)
     return np.array(probs)
 
-'''As pictures of stars from GAIA are not used in training, they should be obtained here'''
 
-def prepare_gaia():
-    data_gaia = data.read_gaia()
-    path = samples_location + 'test_gaia'
-    os.makedirs(path, exist_ok=True)
+def predict_tests(model):
+    test_dr_0, test_dr_1 = data.train_val_test_split()[2]
+    gaia = prepare_gaia()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    legacy_for_img.grab_cutouts(target_file=data_gaia, output_dir=path,
-                                          survey='unwise-neo7', imgsize_pix = 224*8, file_format='jpg' )
-    return data_gaia
+    clust = test_dr_1
+    clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, device=device)
+    rand = test_dr_0
+    rand['prob'] = predict_folder(f'{dr5_sample_location}0', model, device=device)
+
+    gaia['prob'] =  predict_folder(f'{samples_location}test_gaia', model, device=device)
+    samples = [clust, rand, gaia]
+    return samples
 
 
-def create_samples(): #+ input - model (str) for predict_folder
+def create_samples(model):
     os.makedirs(segmentation_maps_pics, exist_ok=True)
 
     path = segmentation_maps_pics + 'Cl/'
@@ -95,9 +108,7 @@ def create_samples(): #+ input - model (str) for predict_folder
         path = segmentation_maps_pics + 'GAIA/'+str(iter1)
         os.makedirs(path, exist_ok=True)
 
-    test_dr_0, test_dr_1 = data.train_val_test_split()[2]
-    gaia = prepare_gaia()
-    samples = [test_dr_1, test_dr_0, gaia]
+    samples = predict_tests(model)
     id = 0
     for test in samples:
         sample5 = test.sample(5, random_state=5).reset_index(drop=True)
@@ -158,71 +169,75 @@ def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps,
     # return data.shape
 
 
-def formSegmentationMaps():
-    create_samples() #returns csvs
+def formSegmentationMaps(model):
+    create_samples(model) #returns csvs
     cl5 = pd.read_csv(clusters_out)
     r5 =  pd.read_csv(randoms_out)
     gaia5 = pd.read_csv(stars_out)
 
+    all_samples = [("Clusters", cl5), ("Random", r5), ("Stars", gaia5)]
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     for i in range(5):
-        createSegMap(0, cl5.loc[i, 'RA'], cl5.loc[i, 'DEC'], cl5.loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}Cl/{i}')
-        createSegMap(0, r5.loc[i, 'RA'], r5.loc[i, 'DEC'], r5.loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}R/{i}')
-        createSegMap(0, gaia5.loc[i, 'RA'], gaia5.loc[i, 'DEC'], gaia5.loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}GAIA/{i}')
+        createSegMap(0, all_samples[0][1].loc[i, 'RA'], all_samples[0][1].loc[i, 'DEC'], all_samples[0][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}Cl/{i}')
+        createSegMap(0, all_samples[1][1].loc[i, 'RA'], all_samples[1][1].loc[i, 'DEC'], all_samples[1][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}R/{i}')
+        createSegMap(0, all_samples[2][1].loc[i, 'RA'], all_samples[2][1].loc[i, 'DEC'], all_samples[2][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}GAIA/{i}')
 
     prob_clusters, prob_randoms, prob_gaia = [], [], []
 
     for i in range(5):
-        prob_clusters.append(predict_folder(f'{segmentation_maps_pics}Cl/{i}', device=device))
-        prob_randoms.append(predict_folder(f'{segmentation_maps_pics}R/{i}', device=device))
-        prob_gaia.append(predict_folder(f'{segmentation_maps_pics}GAIA/{i}', device=device))
+        prob_clusters.append(predict_folder(f'{segmentation_maps_pics}Cl/{i}', model, device=device))
+        prob_randoms.append(predict_folder(f'{segmentation_maps_pics}R/{i}', model, device=device))
+        prob_gaia.append(predict_folder(f'{segmentation_maps_pics}GAIA/{i}', model, device=device))
 
-    return prob_clusters, prob_randoms, prob_gaia
-
-
-def printSegMaps():
-    prob_clusters, prob_randoms, prob_gaia = formSegmentationMaps()
-
-    fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(10, 6))
-
-    for i in range(len(prob_clusters)):
-        ax[0, i].imshow(prob_clusters[i].reshape(20,20), cmap = cm.Blues)
-
-    ax[0, 2].set_title('Clusters')
-    ax[1, 2].set_title('Random')
-    ax[2, 2].set_title('Stars')
-
-    for i in range(len(prob_randoms)):
-        ax[1, i].imshow(prob_randoms[i].reshape(20,20), cmap = cm.Blues)
-
-    for i in range(len(prob_gaia)):
-        ax[2, i].imshow(prob_gaia[i].reshape(20,20), cmap = cm.Blues)
-
-    for j in range(3):
-        for i in range(5):
-            ax[j, i].axis('off')
-            ax[j, i].plot(10, 10, 'x', ms=7, color='red')
-
-    plt.show()
+    predictions = [prob_clusters, prob_randoms, prob_gaia]
+    return all_samples, predictions
 
 
-def printBigSegMap():
+def printSegMaps(selected_models):
+    for model_name, model in selected_models:
+        all_samples, predictions = formSegmentationMaps(model)
+
+        fig = plt.figure(constrained_layout=True)
+        subfigs = fig.subfigures(nrows=len(all_samples), ncols=1)
+        for i in range(len(subfigs)):
+            subfigs[i].suptitle(all_samples[i][0])
+            axs = subfigs[i].subplots(nrows=1, ncols=len(all_samples[i][1]))
+            for j in range(len(axs)):
+                axs[j].plot()
+                axs[j].set_title("{:.4f}".format(all_samples[i][1].loc[j, "prob"]))
+                axs[j].imshow(predictions[i][j].reshape(20,20), cmap = cm.PuBu)
+                axs[j].axis('off')
+                axs[j].plot(10, 10, 'x', ms=7, color='red')
+        plt.show()
+
+
+def printBigSegMap(selected_models):
     test_dr5, test_madcows = data.train_val_test_split()[2:4]
     test_dr5_0, test_dr5_1 = test_dr5
     test_madcows_0, test_madcows_1 = test_madcows
     df = pd.concat([test_dr5_0, test_dr5_1, test_madcows_0, test_madcows_1], ignore_index=True)
+
     cl0 = df[df.target==1].sample(1, random_state=1).reset_index(drop=True)
+    max_ra = cl0['RA'].max()
+    max_de = cl0['DEC'].max()
+    required_space = 15 / 60 #15 minutes including shift
+    while (max_ra + required_space) > 360 or (max_de - required_space) < -90:
+        cl0 = df[df.target==1].sample(1, random_state=1).reset_index(drop=True)
+        max_ra = cl0['RA'].max()
+        max_de = cl0['DEC'].max()
 
     bigSegMapLocation = f'{segmentation_maps_pics}Big'
     os.makedirs(bigSegMapLocation, exist_ok=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    createSegMap(1, cl0.loc[0, 'RA'], cl0.loc[0, 'DEC'], cl0.loc[0, 'Component_name'], dire=bigSegMapLocation)
-    prob_big = predict_folder(bigSegMapLocation, device=device)
-    plt.imshow(prob_big.reshape(30, 30), cmap=cm.Blues)
-    plt.axis('off')
+    for model_name, model in selected_models:
+        createSegMap(1, cl0.loc[0, 'RA'], cl0.loc[0, 'DEC'], cl0.loc[0, 'Component_name'], dire=bigSegMapLocation)
+        prob_big = predict_folder(bigSegMapLocation, model, device=device)
+        plt.imshow(prob_big.reshape(30, 30), cmap=cm.PuBu)
+        plt.axis('off')
 
 # config
 working_path = "./"
