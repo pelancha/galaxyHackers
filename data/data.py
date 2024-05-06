@@ -3,7 +3,6 @@
 
 import os
 from os.path import exists
-import sys
 import wget
 from sklearn.model_selection import train_test_split
 
