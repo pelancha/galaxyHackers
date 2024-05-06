@@ -21,7 +21,7 @@ from pixell import enmap
 
 import torch
 from torchvision import datasets, models, transforms, utils
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 import skimage
 
