@@ -1,4 +1,4 @@
-import legacy_for_img
+import data.legacy_for_img as legacy_for_img
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,7 +12,8 @@ from astropy import units as u
 import os
 import matplotlib as mpl
 from matplotlib import cm
-import data
+import data.data as data
+from data.config import *
 
 
 class ImageSet(Dataset):
@@ -238,14 +239,3 @@ def printBigSegMap(selected_models):
         prob_big = predict_folder(bigSegMapLocation, model, device=device)
         plt.imshow(prob_big.reshape(30, 30), cmap=cm.PuBu)
         plt.axis('off')
-
-# config
-working_path = "./"
-location = "data/"
-segmentation_maps_pics = working_path + location + "example/"
-samples_location = working_path + location + "Data224/"
-dr5_sample_location = samples_location + "test_dr5/"
-
-clusters_out = segmentation_maps_pics + "cl5.csv"
-randoms_out = segmentation_maps_pics + "r5.csv"
-stars_out = segmentation_maps_pics + "gaia5.csv"
