@@ -10,6 +10,11 @@ import os
 import copy
 import time
 
+# Config
+working_path = "./"
+models_epoch = f'{working_path}trained_models/'
+models_state_dict = f'{working_path}state_dict/'
+
 def train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs, start_epoch=0):
     model.to(device)
     model.train()
@@ -22,7 +27,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
     for epoch in range(start_epoch, num_epochs):
         running_loss = 0.0
         correct, total = 0, 0
-        cool_progress_bar = tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}. Training {model.__class__.__name__}', unit='batch')
+        cool_progress_bar = tqdm(train_loader, desc=f'Epoch {epoch + 1}/{num_epochs}. Training {model.__class__.__name__} with {optimizer.__class__.__name__} optimizer', unit='batch')
         for inputs, labels in cool_progress_bar:
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -47,7 +52,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
             os.makedirs(models_state_dict, exist_ok=True)
             best_loss, best_accuracy = val_loss, val_acc
             best_model_weights = copy.deepcopy(model.state_dict())
-            torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_weights.pth')
+            torch.save(best_model_weights, f'{models_state_dict}/{model.__class__.__name__}_{optimizer.__class__.__name__}_weights.pth')
 
         os.makedirs(models_epoch, exist_ok=True)
 
@@ -57,11 +62,11 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
             'optimizer_state_dict': optimizer.state_dict(),
             'best_loss': epoch_loss,
             'best_accuracy': epoch_acc
-        }, f'{models_epoch}/{model.__class__.__name__}_epoch_{epoch + 1}.pth')
+        }, f'{models_epoch}/{model.__class__.__name__}_{optimizer.__class__.__name__}_epoch_{epoch + 1}.pth')
 
     os.makedirs(models_state_dict, exist_ok=True)
     model.load_state_dict(best_model_weights)
-    torch.save(best_model_weights, f'{models_state_dict}/{model.__class__.__name__}_weights.pth')
+    torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_{optimizer.__class__.__name__}_weights.pth')
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
@@ -104,12 +109,3 @@ def continue_training(model, train_loader, val_loader, criterion, optimizer, dev
     losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs, start_epoch)
 
     return losses, epochs, accuracies
-
-
-# Config
-working_path = "./"
-models_epoch = f'{working_path}trained_models/'
-models_state_dict = f'{working_path}state_dict/'
-
-# losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs)
-# losses, epochs, accuracies = continue_training(model, train_loader, val_loader, criterion, optimizer, device, num_epochs, filepath)
