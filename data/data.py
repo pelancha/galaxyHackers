@@ -20,7 +20,7 @@ from astroquery.vizier import Vizier
 from pixell import enmap
 
 import torch
-from torchvision import datasets, models, transforms, utils
+from torchvision import datasets, transforms, utils
 from torch.utils.data import DataLoader
 
 import skimage
