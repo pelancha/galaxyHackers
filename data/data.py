@@ -1,25 +1,32 @@
 '''Script to get dataloaders'''
 '''To create dataloaders you need to adress only function create_dataloaders()'''
 
-import legacy_for_img
 import os
+from os.path import exists
 import sys
 import wget
-import pandas as pd
+from sklearn.model_selection import train_test_split
+
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import astropy.coordinates as coord
+import astropy.units as u
 import astropy.table as atpy
-import torch, numpy
-import matplotlib.pyplot as plt, pandas as pd, numpy as np
-from torchvision import datasets, models, transforms, utils
-import skimage, astropy.coordinates as coord, astropy.units as u
-from torch.utils.data import Dataset, DataLoader
+from astropy.coordinates import Angle
+
+from astroquery.gaia import Gaia
 from astroquery.vizier import Vizier
 from pixell import enmap
-from astropy import units as u
-from astropy.coordinates import Angle
-from sklearn.model_selection import train_test_split
-from os.path import exists
-from astroquery.gaia import Gaia
+
+import torch
+from torchvision import datasets, models, transforms, utils
+from torch.utils.data import Dataset, DataLoader
+
+import skimage
+
+import data.legacy_for_img as legacy_for_img
 
 '''Obtain GAIA stars catalogue'''
 
@@ -34,8 +41,10 @@ def read_gaia():
 
 def read_dr5():
     if not os.path.exists(mapACT_out):
+        os.makedirs(subpath, exist_ok=True)
         wget.download(url=mapACT_url, out=mapACT_out)
     if not os.path.exists(dr5_clusters_out):
+        os.makedirs(subpath, exist_ok=True)
         wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
 
     dr5 = atpy.Table().read(dr5_clusters_out).to_pandas().reset_index(drop=True)
@@ -93,7 +102,7 @@ def concat_tables():
 def createNegativeClassDR5():
     clustersDr5_MC = concat_tables()
     dr5 = read_dr5()
-    imap_98 = enmap.read_fits(f"{working_path}{mapACT}")[0]
+    imap_98 = enmap.read_fits(f"{working_path}{location}{mapACT}")[0]
 
     positions = np.array(np.rad2deg(imap_98.posmap()))
     ras, decs = positions[1].ravel(), positions[0].ravel()
@@ -253,10 +262,10 @@ def ddos():
 def imshow(inp, title=None):
     """Imshow for Tensor."""
     inp = inp.numpy().transpose((1, 2, 0))
-    mean = numpy.array([0.507, 0.487, 0.441])
-    std = numpy.array([0.267, 0.256, 0.276])
+    mean = np.array([0.507, 0.487, 0.441])
+    std = np.array([0.267, 0.256, 0.276])
     inp = std * inp + mean
-    inp = numpy.clip(inp, 0, 1)
+    inp = np.clip(inp, 0, 1)
     plt.imshow(inp)
     if title is not None:
         plt.title(title)
@@ -294,7 +303,6 @@ def create_dataloaders():
 
     folderlocation = f'{working_path}{location}'
 
-    # data_dir = folderlocation
     image_datasets = {x: datasets.ImageFolder(os.path.join(folderlocation, x),
                                               data_transforms[x])
                       for x in ['train', 'val', 'test_dr5', 'test_madcows']}
@@ -319,20 +327,21 @@ def create_dataloaders():
 
     return dataloaders
 
+'''change if needed'''
+location = "data/DATA/"
+dr5_out_file = "dr5_table.csv"
+madcows_out_file = "madcows_table.csv"
 
 '''constant paths'''
 working_path = "./"
+subpath = working_path + location
+
 mapACT = "act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits"
 dr5_clusters = "DR5_cluster-catalog_v1.1.fits"
-
 archieve_dr5 = "https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/"
+
 mapACT_url = archieve_dr5 + 'maps/' + mapACT
 dr5_clusters_url = archieve_dr5 + dr5_clusters
 
-mapACT_out = working_path + mapACT
-dr5_clusters_out = working_path + dr5_clusters
-
-'''change if needed'''
-location = "data/Data224/"
-dr5_out_file = "dr5_table.csv"
-madcows_out_file = "madcows_table.csv"
+mapACT_out = subpath + mapACT
+dr5_clusters_out = subpath + dr5_clusters
