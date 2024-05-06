@@ -6,18 +6,18 @@ from torch.utils.data import random_split, DataLoader
 import os
 import timm
 import numpy as np
-import data
+import data.data as data
 import argparse
-
-from train import train, validate, continue_training
-from plot_builder import plot_losses, plot_accuracies
-
-import spinalnet_resnet
-import spinalnet_vgg
-import vitL16
-import alexnet_vgg
-
 import torch_optimizer as optimizer
+
+from models.train import train, validate, continue_training
+from models.plot_builder import plot_losses, plot_accuracies
+
+import models.spinalnet_resnet as spinalnet_resnet
+import models.spinalnet_vgg as spinalnet_vgg
+import models.vitL16 as vitL16
+import models.alexnet_vgg as alexnet_vgg
+import models.resnet18 as resnet18
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 dataloader = data.create_dataloaders()
@@ -25,7 +25,7 @@ train_loader = dataloader['train']
 val_loader = dataloader['val']
 
 models = [
-    ('ResNet18', timm.create_model('resnet18', pretrained=True, num_classes=1)),
+    ('ResNet18', resnet18.load_model()),
     ('ResNet50', timm.create_model('resnet50', pretrained=True, num_classes=1)),
     ('EfficientNet', timm.create_model('efficientnet_b0', pretrained=True, num_classes=1)),
     ('ViT', timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=1)),
@@ -63,7 +63,7 @@ selected_models = [(model_name, model) for model_name, model in models if model_
 num_epochs = args.epochs
 lr = args.lr
 momentum = args.mm
-optimizer = args.optimizer
+optimizer_name = args.optimizer
 
 # criterion = nn.CrossEntropyLoss()
 
@@ -72,8 +72,8 @@ criterion = nn.BCELoss()
 results = {}
 val_results = {}
 for model_name, model in selected_models:
-    optimizer_class = dict(optimizers)[optimizer]
-    optimizer = optimizer_class(model.parameters(), lr=lr, momentum=momentum) if optimizer in ['SGD', 'RMSprop'] else optimizer_class(model.parameters(), lr=lr)
+    optimizer_class = dict(optimizers)[optimizer_name]
+    optimizer = optimizer_class(model.parameters(), lr=lr, momentum=momentum) if optimizer_name in ['SGD', 'RMSprop'] else optimizer_class(model.parameters(), lr=lr)
 
     losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs)
     results[model_name] = {'losses': losses, 'epochs': epochs, 'accuracies': accuracies}
@@ -90,7 +90,7 @@ for model_name, model in selected_models:
 
 os.makedirs('results', exist_ok=True)
 for model_name, data in results.items():
-    np.savez(f'results/{model_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
+    np.savez(f'results/{model_name}_{optimizer_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
 
 # for model_name, data in val_results.items():
 #    np.savez(f'results/{model_name}_val_results.npz', losses=data['val_losses'], epochs=data['val_epochs'], accuracies=data['val_accuracies'])
