@@ -27,6 +27,8 @@ import skimage
 
 import data.legacy_for_img as legacy_for_img
 
+from data.config import *
+
 '''Obtain GAIA stars catalogue'''
 
 def read_gaia():
@@ -321,26 +323,6 @@ def create_dataloaders():
 
     # Make a grid from batch
     out = utils.make_grid(inputs)
-
     imshow(out)
 
     return dataloaders
-
-'''change if needed'''
-location = "data/DATA/"
-dr5_out_file = "dr5_table.csv"
-madcows_out_file = "madcows_table.csv"
-
-'''constant paths'''
-working_path = "./"
-subpath = working_path + location
-
-mapACT = "act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits"
-dr5_clusters = "DR5_cluster-catalog_v1.1.fits"
-archieve_dr5 = "https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/"
-
-mapACT_url = archieve_dr5 + 'maps/' + mapACT
-dr5_clusters_url = archieve_dr5 + dr5_clusters
-
-mapACT_out = subpath + mapACT
-dr5_clusters_out = subpath + dr5_clusters
