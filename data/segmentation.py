@@ -50,10 +50,9 @@ def prepare_gaia():
     return data_gaia
 
 
-def predict_folder(folder, model, device='cuda:0'):
+def predict_folder(folder, model, optimizer_name, device='cuda:0'):
     model = model.to(device)
-    loaded_model = torch.load(f"{working_path}state_dict/{model.__class__.__name__}_weights.pth", map_location=device)
-    model.load_state_dict(loaded_model)
+    loaded_model = torch.load(f"{working_path}state_dict/best_{model.__class__.__name__}_{optimizer_name}_weights.pth", map_location=device)    model.load_state_dict(loaded_model)
     model.eval()
 
     trans = transforms.Compose([
@@ -76,22 +75,22 @@ def predict_folder(folder, model, device='cuda:0'):
     return np.array(probs)
 
 
-def predict_tests(model):
+def predict_tests(model, optimizer_name):
     test_dr_0, test_dr_1 = data.train_val_test_split()[2]
     gaia = prepare_gaia()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     clust = test_dr_1
-    clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, device=device)
+    clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
     rand = test_dr_0
-    rand['prob'] = predict_folder(f'{dr5_sample_location}0', model, device=device)
+    rand['prob'] = predict_folder(f'{dr5_sample_location}0', model, optimizer_name, device=device)
 
-    gaia['prob'] =  predict_folder(f'{samples_location}test_gaia', model, device=device)
+    gaia['prob'] =  predict_folder(f'{samples_location}test_gaia', model, optimizer_name, device=device)
     samples = [clust, rand, gaia]
     return samples
 
 
-def create_samples(model):
+def create_samples(model, optimizer_name):
     os.makedirs(segmentation_maps_pics, exist_ok=True)
 
     path = segmentation_maps_pics + 'Cl/'
@@ -109,7 +108,7 @@ def create_samples(model):
         path = segmentation_maps_pics + 'GAIA/'+str(iter1)
         os.makedirs(path, exist_ok=True)
 
-    samples = predict_tests(model)
+    samples = predict_tests(model, optimizer_name)
     id = 0
     for test in samples:
         sample5 = test.sample(5, random_state=5).reset_index(drop=True)
@@ -170,8 +169,8 @@ def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps,
     # return data.shape
 
 
-def formSegmentationMaps(model):
-    create_samples(model) #returns csvs
+def formSegmentationMaps(model, optimizer_name):
+    create_samples(model, optimizer_name) #returns csvs
     cl5 = pd.read_csv(clusters_out)
     r5 =  pd.read_csv(randoms_out)
     gaia5 = pd.read_csv(stars_out)
@@ -188,17 +187,17 @@ def formSegmentationMaps(model):
     prob_clusters, prob_randoms, prob_gaia = [], [], []
 
     for i in range(5):
-        prob_clusters.append(predict_folder(f'{segmentation_maps_pics}Cl/{i}', model, device=device))
-        prob_randoms.append(predict_folder(f'{segmentation_maps_pics}R/{i}', model, device=device))
-        prob_gaia.append(predict_folder(f'{segmentation_maps_pics}GAIA/{i}', model, device=device))
+        prob_clusters.append(predict_folder(f'{segmentation_maps_pics}Cl/{i}', model, optimizer_name, device=device))
+        prob_randoms.append(predict_folder(f'{segmentation_maps_pics}R/{i}', model, optimizer_name, device=device))
+        prob_gaia.append(predict_folder(f'{segmentation_maps_pics}GAIA/{i}', model, optimizer_name, device=device))
 
     predictions = [prob_clusters, prob_randoms, prob_gaia]
     return all_samples, predictions
 
 
-def printSegMaps(selected_models):
+def saveSegMaps(selected_models, optimizer_name):
     for model_name, model in selected_models:
-        all_samples, predictions = formSegmentationMaps(model)
+        all_samples, predictions = formSegmentationMaps(model, optimizer_name)
 
         fig = plt.figure(constrained_layout=True)
         subfigs = fig.subfigures(nrows=len(all_samples), ncols=1)
@@ -212,9 +211,11 @@ def printSegMaps(selected_models):
                 axs[j].axis('off')
                 axs[j].plot(10, 10, 'x', ms=7, color='red')
         plt.show()
+        plt.savefig(f"{segmentation_maps_pics}/segmentation_maps/{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
+        plt.close()
 
 
-def printBigSegMap(selected_models):
+def saveBigSegMap(selected_models, optimizer_name):
     test_dr5, test_madcows = data.train_val_test_split()[2:4]
     test_dr5_0, test_dr5_1 = test_dr5
     test_madcows_0, test_madcows_1 = test_madcows
@@ -236,6 +237,8 @@ def printBigSegMap(selected_models):
 
     for model_name, model in selected_models:
         createSegMap(1, cl0.loc[0, 'RA'], cl0.loc[0, 'DEC'], cl0.loc[0, 'Component_name'], dire=bigSegMapLocation)
-        prob_big = predict_folder(bigSegMapLocation, model, device=device)
+        prob_big = predict_folder(bigSegMapLocation, model, optimizer_name, device=device)
         plt.imshow(prob_big.reshape(30, 30), cmap=cm.PuBu)
         plt.axis('off')
+        plt.savefig(f"{bigSegMapLocation}/segmentation_maps/{model_name}_{optimizer_name}_Big.png")
+        plt.close()
