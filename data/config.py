@@ -19,3 +19,8 @@ dr5_sample_location = samples_location + "test_dr5/"
 clusters_out = segmentation_maps_pics + "cl5.csv"
 randoms_out = segmentation_maps_pics + "r5.csv"
 stars_out = segmentation_maps_pics + "gaia5.csv"
+
+data_out = working_path + "data/"
+'''Link to download ddosed data for dataloaders is available until August, 10'''
+data_wget = "http://oshi.at/GtZB"
+zipped_data_out = data_out + "DATA.zip"

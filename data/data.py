@@ -275,7 +275,20 @@ def imshow(inp, title=None):
 
 
 def create_dataloaders():
-    ddos()
+    if (not os.path.exists(location) or 
+      len(os.listdir(location)) == 0):
+        os.makedirs(data_out, exist_ok=True)
+        try:
+            wget.download(url=data_wget, out=data_out)
+            with ZipFile(f"{zipped_data_out}", 'r') as zObject: 
+                zObject.extractall(path=f"{data_out}")
+            os.remove(f"{zipped_data_out}")
+        except:
+            ddos()
+        else:
+            if (not os.path.exists(location) or 
+                  len(os.listdir(location)) == 0):
+                ddos()
 
     data_transforms = {
         'train': transforms.Compose([
