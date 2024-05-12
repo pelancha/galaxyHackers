@@ -7,11 +7,12 @@ import os
 import timm
 import numpy as np
 import data.data as data
+import data.segmentation as segmentation
+import metrics.metrics as metrics
 import argparse
 import torch_optimizer as optimizer
 
 from models.train import train, validate, continue_training
-from models.plot_builder import plot_losses, plot_accuracies
 
 import models.spinalnet_resnet as spinalnet_resnet
 import models.spinalnet_vgg as spinalnet_vgg
@@ -71,15 +72,16 @@ criterion = nn.BCELoss()
 
 results = {}
 val_results = {}
+test_loader = dataloader["test_dr5"]
+classes = ('random', 'clusters')
+
 for model_name, model in selected_models:
     optimizer_class = dict(optimizers)[optimizer_name]
     optimizer = optimizer_class(model.parameters(), lr=lr, momentum=momentum) if optimizer_name in ['SGD', 'RMSprop'] else optimizer_class(model.parameters(), lr=lr)
 
-    losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs)
+    losses, epochs, accuracies, val_losses, val_accuracies, model_X = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs)
     results[model_name] = {'losses': losses, 'epochs': epochs, 'accuracies': accuracies}
-
-    # val_losses, val_epochs, val_accuracies = validate(model, val_loader, criterion, device, num_epochs)
-    # val_results[model_name] = {'val_losses': val_losses, 'val_epochs': val_epochs, 'val_accuracies': val_accuracies}
+    val_results[model_name] = {'val_losses': val_losses, 'val_epochs': epochs, 'val_accuracies': val_accuracies}
 
 # filepath = "/content/trained_models/ResNet_epoch_3.pth"
 #
@@ -88,20 +90,28 @@ for model_name, model in selected_models:
 #     results[model_name].update({'losses': losses, 'epochs': epochs, 'accuracies': accuracies})
 #
 
-os.makedirs('results', exist_ok=True)
-for model_name, data in results.items():
-    np.savez(f'results/{model_name}_{optimizer_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
+    os.makedirs('results', exist_ok=True)
+    for model_name, data in results.items():
+        np.savez(f'results/{model_name}_{optimizer_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
 
-# for model_name, data in val_results.items():
-#    np.savez(f'results/{model_name}_val_results.npz', losses=data['val_losses'], epochs=data['val_epochs'], accuracies=data['val_accuracies'])
+    for model_name, data in val_results.items():
+        np.savez(f'results/{model_name}_{optimizer_name}_val_results.npz', losses=data['val_losses'], epochs=data['val_epochs'], accuracies=data['val_accuracies'])
 
-# plot_losses(results, val_results)
-# plot_accuracies(results, val_results)
-#
-# for model_name, data in results.items():
-#   losses = results[model_name]['losses']
-#   accuracies = results[model_name]['accuracies']
-#
-# print("Stats for nerds")
-# print(f"Max loss: {np.max(losses)} \nAverage loss: {np.mean(losses)} \nMin loss: {np.min(losses)} \n\nMax accuracy: {np.max(accuracies)} \nAverage accuracy: {np.mean(accuracies)} \nMin accuracy: {np.min(accuracies)}")
-# print(f"\nLoss std: {np.std(losses)} \nAccuracy std: {np.std(accuracies)}")
+    y_pred, y_probs, y_true = [], [], []
+
+    #device = torch.device("cpu")
+    for inputs, labels in test_loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+        output = model_X(inputs) # Feed Network
+        y_probs.extend(output.data.cpu().numpy().ravel())
+        output = [1 if (i > 0.9) else 0 for i in output]
+        y_pred.extend(output) # Save Prediction
+
+        labels = labels.data.cpu().numpy()
+        y_true.extend(labels) # Save Truth
+
+
+    metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes, results[model_name], val_results[model_name])
+
+segmentation.printSegMaps(selected_models, optimizer_name)
+segmentation.printBigSegMap(selected_models, optimizer_name)
