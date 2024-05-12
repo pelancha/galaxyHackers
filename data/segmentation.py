@@ -195,27 +195,19 @@ def formSegmentationMaps(model, optimizer_name):
     predictions = [prob_clusters, prob_randoms, prob_gaia]
     return all_samples, predictions
 
-
 def saveSegMaps(selected_models, optimizer_name):
     for model_name, model in selected_models:
         all_samples, predictions = formSegmentationMaps(model, optimizer_name)
-
-        fig = plt.figure(constrained_layout=True)
-        subfigs = fig.subfigures(nrows=len(all_samples), ncols=1)
-        for i in range(len(subfigs)):
-            subfigs[i].suptitle(all_samples[i][0])
-            axs = subfigs[i].subplots(nrows=1, ncols=len(all_samples[i][1]))
+        for i in range(len(all_samples)):
+            fig, axs = plt.subplots(nrows=1, ncols=len(all_samples[i][1]), figsize=(15, 5))
             for j in range(len(axs)):
                 axs[j].plot()
                 axs[j].set_title("{:.4f}".format(all_samples[i][1].loc[j, "prob"]))
                 axs[j].imshow(predictions[i][j].reshape(20,20), cmap = cm.PuBu)
                 axs[j].axis('off')
                 axs[j].plot(10, 10, 'x', ms=7, color='red')
-        plt.show()
-        os.makedirs(seg_maps, exist_ok=True)
-        plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
-        plt.close()
-
+            plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
+            plt.close()
 
 def saveBigSegMap(selected_models, optimizer_name):
     test_dr5, test_madcows = data.train_val_test_split()[2:4]
