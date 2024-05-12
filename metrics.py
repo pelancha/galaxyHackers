@@ -1,5 +1,4 @@
 import numpy as np
-from os import makedirs
 
 from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -82,7 +81,6 @@ def modelPerformance(model_name, optimizer_name,
     fpr = fp/(fp+tn)
 
     # save metrics in .txt file
-    makedirs("metrics", exist_ok=True)
     with open('metrics/record_metrics.txt', 'w', encoding='utf8') as w_file:
         w_file.write(f'{model_name}; {optimizer_name} \n')
 
