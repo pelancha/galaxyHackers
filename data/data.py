@@ -5,29 +5,23 @@ import os
 from os.path import exists
 import wget
 from sklearn.model_selection import train_test_split
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 import astropy.coordinates as coord
 import astropy.units as u
 import astropy.table as atpy
 from astropy.coordinates import Angle
-
 from astroquery.gaia import Gaia
 from astroquery.vizier import Vizier
 from pixell import enmap
-
 import torch
 from torchvision import datasets, transforms, utils
 from torch.utils.data import DataLoader
-
 import skimage
-
 import data.legacy_for_img as legacy_for_img
-
 from data.config import *
+from zipfile import ZipFile 
 
 '''Obtain GAIA stars catalogue'''
 
@@ -53,7 +47,6 @@ def read_dr5():
         else:
             if not os.path.exists(mapACT_out):
                 wget.download(url=mapACT_url, out=mapACT_out)
-
 
     if not os.path.exists(dr5_clusters_out):
         os.makedirs(subpath, exist_ok=True)
