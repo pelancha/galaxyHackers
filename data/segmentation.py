@@ -206,6 +206,7 @@ def saveSegMaps(selected_models, optimizer_name):
                 axs[j].imshow(predictions[i][j].reshape(20,20), cmap = cm.PuBu)
                 axs[j].axis('off')
                 axs[j].plot(10, 10, 'x', ms=7, color='red')
+            os.makedirs(seg_maps, exist_ok=True)
             plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
             plt.close()
 
