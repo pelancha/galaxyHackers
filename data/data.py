@@ -43,10 +43,30 @@ def read_gaia():
 def read_dr5():
     if not os.path.exists(mapACT_out):
         os.makedirs(subpath, exist_ok=True)
-        wget.download(url=mapACT_url, out=mapACT_out)
+        try:
+            wget.download(url=act_wget, out=subpath)
+            with ZipFile(f"{zipped_act_out}", 'r') as zObject: 
+                zObject.extractall(path=f"{subpath}")
+            os.remove(f"{zipped_act_out}")
+        except:
+            wget.download(url=mapACT_url, out=mapACT_out)
+        else:
+            if not os.path.exists(mapACT_out):
+                wget.download(url=mapACT_url, out=mapACT_out)
+
+
     if not os.path.exists(dr5_clusters_out):
         os.makedirs(subpath, exist_ok=True)
-        wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
+        try:
+            wget.download(url=dr5_wget, out=subpath)
+            with ZipFile(f"{zipped_dr5_out}", 'r') as zObject: 
+                zObject.extractall(path=f"{subpath}")
+            os.remove(f"{zipped_dr5_out}")           
+        except:
+            wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
+        else:
+            if not os.path.exists(dr5_clusters_out):
+                wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
 
     dr5 = atpy.Table().read(dr5_clusters_out).to_pandas().reset_index(drop=True)
     dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
