@@ -22,6 +22,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
     best_loss, best_accuracy = float("inf"), 0.0
     best_model_weights = copy.deepcopy(model.state_dict())
     losses, epochs, accuracies = [], [], []
+    val_losses, val_accuracies = [], []
 
     since = time.time()
     for epoch in range(start_epoch, num_epochs):
@@ -48,6 +49,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
         epochs.append(epoch + 1)
 
         val_loss, val_acc = validate(model, val_loader, criterion, device)
+        
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
+          
         if val_loss < best_loss:
             os.makedirs(models_state_dict, exist_ok=True)
             best_loss, best_accuracy = val_loss, val_acc
@@ -69,11 +74,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, num_epo
     torch.save(best_model_weights, f'{models_state_dict}/best_{model.__class__.__name__}_{optimizer.__class__.__name__}_weights.pth')
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best Validation Loss: {:.4f}, Best Validation Accuracy: {:.4f}'.format(best_loss, best_accuracy))
 
-    return losses, epochs, accuracies
+    return losses, epochs, accuracies, val_losses, val_accuracies, model
 
 def validate(model, val_loader, criterion, device):
     model.to(device)
@@ -94,8 +98,7 @@ def validate(model, val_loader, criterion, device):
     val_accuracy = correct / total
 
     time_elapsed = time.time() - since
-    print('Validation complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
+    print('Validation complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Validation Loss: {:.4f}, Validation Accuracy: {:.4f}'.format(val_loss, val_accuracy))
 
     return val_loss, val_accuracy
@@ -106,6 +109,6 @@ def continue_training(model, train_loader, val_loader, criterion, optimizer, dev
     optimizer.load_state_dict(loaded_model["optimizer_state_dict"])
     start_epoch = loaded_model['epoch'] + 1
 
-    losses, epochs, accuracies = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs, start_epoch)
+    losses, epochs, accuracies, val_losses, val_accuracies, model = train(model, train_loader, val_loader, criterion, optimizer, device, num_epochs, start_epoch)
 
-    return losses, epochs, accuracies
+    return losses, epochs, accuracies, val_losses, val_accuracies, model
