@@ -113,5 +113,5 @@ for model_name, model in selected_models:
 
     metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes, results[model_name], val_results[model_name])
 
-segmentation.printSegMaps(selected_models, optimizer_name)
-segmentation.printBigSegMap(selected_models, optimizer_name)
+segmentation.saveSegMaps(selected_models, optimizer_name)
+segmentation.saveBigSegMap(selected_models, optimizer_name)
