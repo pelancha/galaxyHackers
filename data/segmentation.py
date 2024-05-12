@@ -52,7 +52,8 @@ def prepare_gaia():
 
 def predict_folder(folder, model, optimizer_name, device='cuda:0'):
     model = model.to(device)
-    loaded_model = torch.load(f"{working_path}state_dict/best_{model.__class__.__name__}_{optimizer_name}_weights.pth", map_location=device)    model.load_state_dict(loaded_model)
+    loaded_model = torch.load(f"{working_path}state_dict/best_{model.__class__.__name__}_{optimizer_name}_weights.pth", map_location=device)
+    model.load_state_dict(loaded_model)
     model.eval()
 
     trans = transforms.Compose([
