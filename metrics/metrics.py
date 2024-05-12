@@ -23,6 +23,8 @@ def plot_loss_by_model(model_name: str, result: dict, val_result: dict, path: st
     plt.grid(True, linestyle='--', alpha=0.5)
 
     plt.savefig(path)
+    plt.close()
+
 
 
 def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, path: str):
@@ -37,7 +39,7 @@ def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, pa
     plt.grid(True, linestyle='--', alpha=0.5)
 
     plt.savefig(path)
-
+    plt.close()
 
 def modelPerformance(model_name, optimizer_name,
                      y_train_target, y_train_predicted, y_train_classified,
@@ -100,7 +102,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.title('ROC curve')
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_ROC.png')
-
+    plt.close()
     # plot precision recall
 
     precisions, recalls, thresholds = precision_recall_curve(y_train_target, y_train_classified)
@@ -110,16 +112,16 @@ def modelPerformance(model_name, optimizer_name,
     plt.title('Precision-Recall curve')
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_Precision_Recall_curve.png')
-
+    plt.close()
     # confusion matrices
     e_00, e_11 = cm[0, 0] / (cm[0, 0] + cm[0, 1]), cm[1, 1] / (cm[1, 0] + cm[1, 1])
     weighted_cm = np.array([[e_00, 1 - e_00], [1 - e_11, e_11]])
 
     cmDisp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes).plot()
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_ConfusionMatrix.png')
-
+    plt.close()
     w_cmDisp = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_WeightedConfusionMatrix.png')
-
+    plt.close()
     plot_loss_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_losses.png')
     plot_accuracies_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_accuracies.png')
