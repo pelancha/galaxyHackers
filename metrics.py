@@ -13,8 +13,8 @@ def plot_loss_by_model(model_name: str, result: dict, val_result: dict, path: st
     plt.figure(figsize=(10, 6))
 
     # available flags for customizing: linestyle="--", linewidth=2, marker,
-    plt.plot(result['epochs'], result['losses'], label=model_name, marker=".")
-    plt.plot(val_result['val_epochs'], val_result['val_losses'], label=model_name)
+    plt.plot(result['epochs'], result['losses'], label="train", marker=".")
+    plt.plot(val_result['val_epochs'], val_result['val_losses'], label="valid", marker="*")
 
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
@@ -27,8 +27,8 @@ def plot_loss_by_model(model_name: str, result: dict, val_result: dict, path: st
 
 def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, path: str):
     plt.figure(figsize=(10, 6))
-    plt.plot(result['epochs'], result['accuracies'], label=model_name)
-    plt.plot(val_result['val_epochs'], val_result['val_accuracies'], label=model_name)
+    plt.plot(result['epochs'], result['accuracies'], label="train", marker=".")
+    plt.plot(val_result['val_epochs'], val_result['val_accuracies'], label="valid", marker="*")
 
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
@@ -81,16 +81,14 @@ def modelPerformance(model_name, optimizer_name,
     fpr = fp/(fp+tn)
 
     # save metrics in .txt file
-    with open('metrics/record_metrics.txt', 'w', encoding='utf8') as w_file:
+    with open('metrics/record_metrics.txt', 'a', encoding='utf8') as w_file:
         w_file.write(f'{model_name}; {optimizer_name} \n')
-
         w_file.write(('Test accuracy: %.2f %%' % (acc*100)) + '\n')
         w_file.write(('Test Precision: %.2f %%' % (modelPrecision*100)) + '\n')
         w_file.write(('Test Recall or (TPR): %.2f %%' % (modelRecall*100)) + '\n')
         w_file.write(('Test F1-Score: %.2f %%' % (f1_measure*100)) + '\n')
         w_file.write(('Test Fall-out (FPR): %.2f %%' % (fpr*100)) + '\n')
-        w_file.write('\n')
-        w_file.write('----------')
+        w_file.write('----------\n')
 
     # plot roc curve
 
@@ -100,6 +98,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.xlabel('False Positive Rate, FPR')
     plt.ylabel('True Positive Rate, TPR')
     plt.title('ROC curve')
+    plt.grid(True, linestyle='--', alpha=0.5)
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_ROC.png')
 
     # plot precision recall
@@ -109,6 +108,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.title('Precision-Recall curve')
+    plt.grid(True, linestyle='--', alpha=0.5)
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_Precision_Recall_curve.png')
 
     # confusion matrices
