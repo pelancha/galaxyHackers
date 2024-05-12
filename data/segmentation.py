@@ -212,7 +212,8 @@ def saveSegMaps(selected_models, optimizer_name):
                 axs[j].axis('off')
                 axs[j].plot(10, 10, 'x', ms=7, color='red')
         plt.show()
-        plt.savefig(f"{segmentation_maps_pics}/segmentation_maps/{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
+        os.makedirs(seg_maps, exist_ok=True)
+        plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
         plt.close()
 
 
@@ -241,5 +242,6 @@ def saveBigSegMap(selected_models, optimizer_name):
         prob_big = predict_folder(bigSegMapLocation, model, optimizer_name, device=device)
         plt.imshow(prob_big.reshape(30, 30), cmap=cm.PuBu)
         plt.axis('off')
-        plt.savefig(f"{bigSegMapLocation}/segmentation_maps/{model_name}_{optimizer_name}_Big.png")
+        os.makedirs(seg_maps, exist_ok=True)
+        plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_Big.png")
         plt.close()
