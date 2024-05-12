@@ -24,3 +24,5 @@ data_out = working_path + "data/"
 '''Link to download ddosed data for dataloaders is available until August, 10'''
 data_wget = "http://oshi.at/GtZB"
 zipped_data_out = data_out + "DATA.zip"
+
+seg_maps = "segmentation_maps/"
