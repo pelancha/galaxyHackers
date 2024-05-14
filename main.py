@@ -15,6 +15,8 @@ import torch_optimizer as optimizer
 from models.train import train, validate, continue_training
 
 import models.spinalnet_resnet as spinalnet_resnet
+import models.effnet as effnet
+import models.densenet as densenet
 import models.spinalnet_vgg as spinalnet_vgg
 import models.vitL16 as vitL16
 import models.alexnet_vgg as alexnet_vgg
@@ -27,11 +29,8 @@ val_loader = dataloader['val']
 
 models = [
     ('ResNet18', resnet18.load_model()),
-    ('ResNet50', timm.create_model('resnet50', pretrained=True, num_classes=1)),
-    ('EfficientNet', timm.create_model('efficientnet_b0', pretrained=True, num_classes=1)),
-    ('ViT', timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=1)),
-    ('VGGNet', timm.create_model('vgg11', pretrained=True, num_classes=1)),
-    ('DenseNet', timm.create_model('densenet121', pretrained=True, num_classes=1)),
+    ('EfficientNet', effnet.load_model()),
+    ('DenseNet', densenet.load_model()),
     ('SpinalNet_ResNet', spinalnet_resnet.load_model()),
     ('SpinalNet_VGG', spinalnet_vgg.load_model()),
     ('ViTL16', vitL16.load_model()),
@@ -50,7 +49,7 @@ optimizers = [
 ]
 
 parser = argparse.ArgumentParser(description='Model training')
-parser.add_argument('--models', nargs='+', default=['ResNet18', 'ResNet50', 'EfficientNet', 'ViT', 'VGGNet', 'DenseNet', 'SpinalNet_ResNet', 'SpinalNet_VGG', 'ViTL16', 'AlexNet_VGG'],
+parser.add_argument('--models', nargs='+', default=['ResNet18', 'EfficientNet', 'DenseNet', 'SpinalNet_ResNet', 'SpinalNet_VGG', 'ViTL16', 'AlexNet_VGG'],
                     help='List of models to train (default: all)')
 parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train (default: 5)')
 parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for optimizer (default: 0.0001)')
