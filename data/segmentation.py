@@ -205,7 +205,7 @@ def prepare_samples():
 
 def formSegmentationMaps(model, optimizer_name):
     if (not os.path.exists(segmentation_maps_pics) or 
-        len(os.listdir(segmentation_maps_pics)) == 0):
+        len(os.listdir(f'{segmentation_maps_pics}GAIA/4')) == 0):
         os.makedirs(data_out, exist_ok=True)
         try:
             wget.download(url=example_wget, out=data_out)
@@ -224,6 +224,11 @@ def formSegmentationMaps(model, optimizer_name):
                 len(os.listdir(segmentation_maps_pics)) == 0):
                 create_samples(model, optimizer_name) #returns csvs
                 all_samples = prepare_samples()
+    else:
+            cl5 = pd.read_csv(clusters_out)
+            r5 =  pd.read_csv(randoms_out)
+            gaia5 = pd.read_csv(stars_out)
+            all_samples = [("Clusters", cl5), ("Random", r5), ("Stars", gaia5)]
 
     prob_clusters, prob_randoms, prob_gaia = [], [], []
 
@@ -252,6 +257,7 @@ def saveSegMaps(selected_models, optimizer_name):
                 axs[j].imshow(predictions[i][j].reshape(20,20), cmap = cm.PuBu)
                 axs[j].axis('off')
                 axs[j].plot(10, 10, 'x', ms=7, color='red')
+            plt.suptitle(all_samples[i][0], size='xx-large')
             os.makedirs(seg_maps, exist_ok=True)
             plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
             plt.close()
@@ -320,10 +326,11 @@ def saveBigSegMap(selected_models, optimizer_name):
                 test_dr5_0, test_dr5_1 = test_dr5
                 test_madcows_0, test_madcows_1 = test_madcows
                 create_sample_big(test_dr5_1, test_madcows_1)
-                # cl0 = pd.read_csv(cl_bigSegMap_out)
+                cl0 = pd.read_csv(cl_bigSegMap_out)
+    else:
+        cl0 = pd.read_csv(cl_bigSegMap_out)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    cl0 = pd.read_csv(cl_bigSegMap_out)
     for model_name, model in selected_models:
         prob_big = predict_folder(bigSegMap_pics, model, optimizer_name, device=device)
         plt.imshow(prob_big.reshape(30, 30), cmap=cm.PuBu)
