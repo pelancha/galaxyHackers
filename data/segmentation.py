@@ -1,3 +1,9 @@
+'''Script to create segmentation maps for models'''
+'''
+To create segmentation maps for randomly chosen clusters, random objects and stars use function saveSegMaps()
+To create a segmentation map with larger scale for a randomly chosen cluster use function saveBigSegMap()
+'''
+
 import data.legacy_for_img as legacy_for_img
 import numpy as np
 import pandas as pd
@@ -40,7 +46,6 @@ class ImageSet(Dataset):
 
         return image
 
-'''As pictures of stars from GAIA are not used in training, they should be obtained here'''
 
 def prepare_gaia():
     data_gaia = data.read_gaia()
@@ -184,9 +189,9 @@ def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps,
     # print(data)
     # return data.shape
 
-'''Function to create segmentation maps for chosen samples'''
 
 def prepare_samples():
+    '''Function to create segmentation maps for chosen samples'''
     cl5 = pd.read_csv(clusters_out)
     r5 =  pd.read_csv(randoms_out)
     gaia5 = pd.read_csv(stars_out)
@@ -233,6 +238,10 @@ def formSegmentationMaps(model, optimizer_name):
 
 
 def saveSegMaps(selected_models, optimizer_name):
+    '''
+    Creates segmentation maps in 10x10 boxes with 0.5 minute step for 5 randomly chosen clusters from ACT_dr5 dataset, 
+    objects from its negative class, stars from GAIA catalogue and saves these three samples separately in segmentation_maps folder 
+    '''
     for model_name, model in selected_models:
         all_samples, predictions = formSegmentationMaps(model, optimizer_name)
         for i in range(len(all_samples)):
@@ -246,8 +255,7 @@ def saveSegMaps(selected_models, optimizer_name):
             os.makedirs(seg_maps, exist_ok=True)
             plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
             plt.close()
-
-'''Functions to create a segmentation map in a 30x30 box for a cluster with step 1 minute'''
+ 
 
 def create_sample_big(test_dr5_1, test_madcows_1):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -286,6 +294,10 @@ def create_sample_big(test_dr5_1, test_madcows_1):
 
 
 def saveBigSegMap(selected_models, optimizer_name):
+    '''
+    Creates a segmentation map in a 30x30 box with 1 minute step for a cluster randomly chosen from MaDCoWS or ACT_dr5 datasets 
+    and saves it in segmentation_maps folder
+    '''
     if (not os.path.exists(bigSegMapLocation) or 
         len(os.listdir(bigSegMap_pics)) == 0):
         os.makedirs(data_out, exist_ok=True)
