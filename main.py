@@ -39,13 +39,16 @@ models = [
 
 optimizers = [
     ('SGD', optim.SGD),
+    ('Rprop', optim.Rprop),
     ('Adam', optim.Adam),
-    ('Adagrad', optim.Adagrad),
-    ('RMSprop', optim.RMSprop),
-    ('Adadelta', optim.Adadelta),
+    ('NAdam', optim.NAdam),
+    ('RAdam', optim.RAdam),
     ('AdamW', optim.AdamW),
+    #('Adagrad', optim.Adagrad),
+    ('RMSprop', optim.RMSprop),
+    #('Adadelta', optim.Adadelta),
     ('DiffGrad', optimizer.DiffGrad),
-    ('LBFGS', optim.LBFGS)
+    # ('LBFGS', optim.LBFGS)
 ]
 
 parser = argparse.ArgumentParser(description='Model training')
