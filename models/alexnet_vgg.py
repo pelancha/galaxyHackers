@@ -25,7 +25,7 @@ class AlexNet_VGG(nn.Module):
         return x
 
 def load_model(num_class=1):
-  model_ft = models.alexnet(pretrained=True)
+  model_ft = models.alexnet(weights=models.AlexNet_Weights.DEFAULT)
   num_ftrs = model_ft.classifier[1].in_features
   half_in_size = round(num_ftrs/2)
 
