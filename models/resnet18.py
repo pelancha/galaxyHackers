@@ -5,7 +5,7 @@ from torchvision import models
 class ResNet18(nn.Module):
     def __init__(self, num_classes=1):
         super(ResNet18, self).__init__()
-        self.resnet = models.resnet18(pretrained=True)
+        self.resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         num_ftrs = self.resnet.fc.in_features
         self.resnet.fc = nn.Sequential(
             nn.Linear(num_ftrs, 512),
