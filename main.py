@@ -81,8 +81,8 @@ test_loader = dataloader["test_dr5"]
 classes = ('random', 'clusters')
 
 if wandb_api_token:
-    wandb.init(project='cluster-search', config=args, reinit=True)
     wandb.login(key=wandb_api_token)
+    wandb.init(project='cluster-search', config=args, reinit=True)
 else:
     wandb.init(project='cluster-search', config=args, reinit=True)
 
