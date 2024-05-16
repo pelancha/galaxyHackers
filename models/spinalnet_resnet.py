@@ -39,7 +39,7 @@ class SpinalNet_ResNet(nn.Module):
 
 
 def load_model(num_class=1):
-    model_ft = models.wide_resnet101_2(pretrained=True)
+    model_ft = models.wide_resnet101_2(weights=models.Wide_ResNet101_2_Weights.DEFAULT)
     num_ftrs = model_ft.fc.in_features
 
     half_in_size = round(num_ftrs/2)
