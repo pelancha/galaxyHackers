@@ -111,6 +111,27 @@ for model_name, model in selected_models:
         wandb.log({f'{model_name}_{optimizer_name}_train_loss': losses[epoch], f'{model_name}_{optimizer_name}_train_accuracy': accuracies[epoch], 'epoch': epochs[epoch]})
         wandb.log({f'{model_name}_{optimizer_name}_val_loss': val_losses[epoch], f'{model_name}_{optimizer_name}_val_accuracy': val_accuracies[epoch], 'epoch': epochs[epoch]})
     
+
+    train_table = wandb.Table(data=[[epochs[i], losses[i], accuracies[i]] for i in range(num_epochs)],
+                          columns=["Epoch", "Loss", "Accuracy"])
+
+    val_table = wandb.Table(data=[[epochs[i], val_losses[i], val_accuracies[i]] for i in range(num_epochs)],
+                            columns=["Epoch", "Loss", "Accuracy"])
+
+    wandb.log({"Train Metrics": train_table, "Validation Metrics": val_table})
+    # wandb.log({f'{model_name}_{optimizer_name}_train_loss': wandb.plot.line_series(xs=np.array([epochs] * len(losses)), ys=np.array(losses), title=f'{model_name}_{optimizer_name} Training Loss')})
+    # wandb.log({f'{model_name}_{optimizer_name}_val_loss': wandb.plot.line_series(xs=np.array([epochs] * len(val_losses)), ys=np.array(val_losses), title=f'{model_name}_{optimizer_name} Validation Loss')})
+
+    model_weights = []
+    # for name, param in model.named_parameters():
+    #    if 'weight' in name:
+    #        model_weights.extend(param.detach().cpu().numpy().flatten())
+    # wandb.log({f'{model_name}_{optimizer_name}_model_weights': wandb.Histogram(model_weights)})
+    
+    #for name, param in model.named_parameters():
+    #    if param.grad is not None:
+    #        wandb.log({f'{model_name}_{optimizer_name}_gradient_{name}': wandb.Histogram(param.grad.detach().cpu().numpy().flatten())})
+
     os.makedirs('results', exist_ok=True)
     for model_name, data in results.items():
         np.savez(f'results/{model_name}_{optimizer_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
@@ -127,10 +148,12 @@ for model_name, model in selected_models:
         y_probs.extend(output.data.cpu().numpy().ravel())
         output = [1 if (i > 0.9) else 0 for i in output]
         y_pred.extend(output) # Save Prediction
-
         labels = labels.data.cpu().numpy()
         y_true.extend(labels) # Save Truth
 
+    # confusion_matrix = metrics.plot_confusion_matrix(y_true, y_pred) TO DO
+    # wandb.log({f'{model_name}_{optimizer_name}_confusion_matrix': confusion_matrix})
+    # wandb.log({f'{model_name}_{optimizer_name}_probabilities': wandb.Histogram(np.array(y_probs))})
 
     metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes, results[model_name], val_results[model_name])
 
