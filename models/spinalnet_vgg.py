@@ -46,7 +46,7 @@ class SpinalNet_VGG(nn.Module):
         return x
 
 def load_model(num_class=1):
-    model_ft = models.vgg19_bn(pretrained=True)
+    model_ft = models.vgg19_bn(weights=models.VGG19_BN_Weights.DEFAULT)
     num_ftrs = model_ft.classifier[0].in_features
     half_in_size = round(num_ftrs/2)
     layer_width = 512
