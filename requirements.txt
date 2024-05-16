@@ -13,3 +13,4 @@ torch_optimizer
 torchvision
 tqdm
 wget
+wandb
