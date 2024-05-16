@@ -11,6 +11,9 @@ import data.segmentation as segmentation
 import metrics.metrics as metrics
 import argparse
 import torch_optimizer as optimizer
+import wandb
+
+from data.config import wandb_api_token
 
 from models.train import train, validate, continue_training
 
@@ -77,6 +80,19 @@ val_results = {}
 test_loader = dataloader["test_dr5"]
 classes = ('random', 'clusters')
 
+if wandb_api_token:
+    wandb.init(project='cluster-search', config=args, reinit=True)
+    wandb.login(key=wandb_api_token)
+else:
+    wandb.init(project='cluster-search', config=args, reinit=True)
+
+
+wandb.config.models = args.models
+wandb.config.epochs = num_epochs
+wandb.config.lr = lr
+wandb.config.momentum = momentum
+wandb.config.optimizer = optimizer_name
+
 for model_name, model in selected_models:
     optimizer_class = dict(optimizers)[optimizer_name]
     optimizer = optimizer_class(model.parameters(), lr=lr, momentum=momentum) if optimizer_name in ['SGD', 'RMSprop'] else optimizer_class(model.parameters(), lr=lr)
@@ -90,8 +106,11 @@ for model_name, model in selected_models:
 # for model_name, model in models:
 #     losses, epochs, accuracies = continue_training(model, train_loader, criterion, optimizer, device, num_epochs, filepath)
 #     results[model_name].update({'losses': losses, 'epochs': epochs, 'accuracies': accuracies})
-#
-
+# 
+    for epoch in range(num_epochs):
+        wandb.log({f'{model_name}_{optimizer_name}_train_loss': losses[epoch], f'{model_name}_{optimizer_name}_train_accuracy': accuracies[epoch], 'epoch': epochs[epoch]})
+        wandb.log({f'{model_name}_{optimizer_name}_val_loss': val_losses[epoch], f'{model_name}_{optimizer_name}_val_accuracy': val_accuracies[epoch], 'epoch': epochs[epoch]})
+    
     os.makedirs('results', exist_ok=True)
     for model_name, data in results.items():
         np.savez(f'results/{model_name}_{optimizer_name}_results.npz', losses=data['losses'], epochs=data['epochs'], accuracies=data['accuracies'])
@@ -114,6 +133,17 @@ for model_name, model in selected_models:
 
 
     metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes, results[model_name], val_results[model_name])
+
+wandb.finish()
+
+wandb_run = wandb.run
+if wandb_run:
+    logged_metrics = wandb_run.history()
+    print("Logged Metrics:")
+    for key, value in logged_metrics.items():
+        print(key, ":", value)
+else:
+    print("No wandb run found.")
 
 segmentation.saveSegMaps(selected_models, optimizer_name)
 segmentation.saveBigSegMap(selected_models, optimizer_name)
