@@ -42,3 +42,5 @@ bigSegMapLocation = data_out + "example_big/"
 bigSegMap_pics = bigSegMapLocation + "Big/"
 cl_bigSegMap_out = bigSegMapLocation + "cluster_bigSegMap.csv"
 zipped_bigSegMap_out = data_out + "example_big.zip"
+
+wandb_api_token = '' #put your wandb token here
