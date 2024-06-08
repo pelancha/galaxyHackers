@@ -1,0 +1,8 @@
+*.tmp
+
+poetry.lock
+venv
+
+data/DATA
+
+*/__pycache__/*
