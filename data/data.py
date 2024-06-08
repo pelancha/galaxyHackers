@@ -20,8 +20,16 @@ from torchvision import datasets, transforms, utils
 from torch.utils.data import DataLoader
 import skimage
 import data.legacy_for_img as legacy_for_img
-from data.config import *
 from zipfile import ZipFile 
+
+import settings
+import sys
+
+def bar_progress(current, total, width=80):
+  progress_message = "Downloading: %d%% [%d / %d] bytes" % (current / total * 100, current, total)
+  # Don't use print() as it will print in new line every time.
+  sys.stdout.write("\r" + progress_message)
+  sys.stdout.flush()
 
 '''Obtain GAIA stars catalogue'''
 
@@ -34,34 +42,26 @@ def read_gaia():
 
 '''Obtain ACT_DR5, clusters identified there and in MaDCoWS'''
 
+def download_data():
+
+    for config in [settings.MAP_ACT_CONFIG, settings.DR5_CONFIG]:
+
+        if not os.path.exists(config["OUTPUT_PATH"]):
+            try:
+                wget.download(url=config["URL"], out=settings.STORAGE_PATH, bar=bar_progress)
+                with ZipFile(config["ZIPPED_OUTPUT_PATH"], 'r') as zObject: 
+                    zObject.extractall(path=settings.STORAGE_PATH)
+                rename_dict = config["RENAME_DICT"]
+
+                os.rename(rename_dict["SOURCE"], rename_dict["TARGET"])
+                os.remove(config["ZIPPED_OUTPUT_PATH"])
+            except Exception:
+                # Getting 403, what credentials needed?
+                wget.download(url=config['FALLBACK_URL'], out=config["OUTPUT_PATH"], bar=bar_progress)
+
 def read_dr5():
-    if not os.path.exists(mapACT_out):
-        os.makedirs(subpath, exist_ok=True)
-        try:
-            wget.download(url=act_wget, out=subpath)
-            with ZipFile(f"{zipped_act_out}", 'r') as zObject: 
-                zObject.extractall(path=f"{subpath}")
-            os.remove(f"{zipped_act_out}")
-        except:
-            wget.download(url=mapACT_url, out=mapACT_out)
-        else:
-            if not os.path.exists(mapACT_out):
-                wget.download(url=mapACT_url, out=mapACT_out)
-
-    if not os.path.exists(dr5_clusters_out):
-        os.makedirs(subpath, exist_ok=True)
-        try:
-            wget.download(url=dr5_wget, out=subpath)
-            with ZipFile(f"{zipped_dr5_out}", 'r') as zObject: 
-                zObject.extractall(path=f"{subpath}")
-            os.remove(f"{zipped_dr5_out}")           
-        except:
-            wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
-        else:
-            if not os.path.exists(dr5_clusters_out):
-                wget.download(url=dr5_clusters_url, out=dr5_clusters_out)
-
-    dr5 = atpy.Table().read(dr5_clusters_out).to_pandas().reset_index(drop=True)
+   
+    dr5 = atpy.Table().read(settings.DR5_CLUSTERS_PATH).to_pandas().reset_index(drop=True)
     dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
 
     return dr5

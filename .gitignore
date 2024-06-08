@@ -1,8 +1,14 @@
 *.tmp
+storage/
 
 poetry.lock
 venv
 
-data/DATA
+sandbox.ipynb
 
 */__pycache__/*
+__pycache__/*
+
+
+# Ignore dynaconf secret files
+.secrets.*
