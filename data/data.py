@@ -61,13 +61,31 @@ def download_data():
 
 def read_dr5():
    
-    dr5 = atpy.Table().read(settings.DR5_CLUSTERS_PATH).to_pandas().reset_index(drop=True)
-    dr5['name'] = [str(dr5.loc[i, 'name'], encoding='utf-8') for i in range(len(dr5))]
+    dr5: atpy.Table = atpy.Table().read(settings.DR5_CLUSTERS_PATH)
+    dr5_frame = dr5.to_pandas().reset_index(drop=True)
+    
+    dr5_frame["name"] = dr5_frame["name"].astype(str)
 
-    return dr5
+    dr5_frame = dr5_frame.rename(
+    columns={
+     "RADeg": "ra_deg",
+     "decDeg": "dec_deg"}
+)
+
+    return dr5_frame
 
 
-def readMC():
+def to_hms_format(time_str):
+    parts = time_str.split()
+    return f"{parts[0]}h{parts[1]}m{parts[2]}s"
+
+
+def to_dms_format(time_str):
+    parts = time_str.split()
+    return f"{parts[0]}d{parts[1]}m{parts[2]}s"
+
+
+def read_mc():
     # the catalogue of MaDCoWS in VizieR
     CATALOGUE = "J/ApJS/240/33/"
 
@@ -76,75 +94,81 @@ def readMC():
     Vizier.ROW_LIMIT = -1
     catalogs = Vizier.get_catalogs(catalog_list.keys())
 
-    interesting_table = catalogs[CATALOGUE + "table3"]
+    interesting_table: atpy.Table = catalogs[os.path.join(CATALOGUE,  "table3")]
     madcows_table = interesting_table.to_pandas().reset_index(drop=True)
-    madcows_table = madcows_table.iloc[:, [1, 2, 3]]
 
-    return madcows_table
-
-'''Concat clusters from act_dr5 and madcows to create negative classes in samples'''
-
-def toHmsFormat(time_str):
-    parts = time_str.split()
-    return f"{parts[0]}h{parts[1]}m{parts[2]}s"
+    madcows_table["ra_deg"] = madcows_table["RAJ2000"].apply(lambda x: Angle(to_hms_format(x)).degree)
+    madcows_table["dec_deg"] = madcows_table["DEJ2000"].apply(lambda x: Angle(to_dms_format(x)).degree)
 
 
-def toDmsFormat(time_str):
-    parts = time_str.split()
-    return f"{parts[0]}d{parts[1]}m{parts[2]}s"
+    return madcows_table.rename(columns={"Name": "name"})
 
 
-def concat_tables():
-    madcows_table = readMC()
+def get_all_clusters():
+
+    '''Concat clusters from act_dr5 and madcows to create negative classes in samples'''
+
+    mc = read_mc()
     dr5 = read_dr5()
-    radegDr5 = dr5.loc[:, "RADeg"]
-    decdegDr5 = dr5.loc[:, "decDeg"]
 
-    radegMC = madcows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
-    decdegMC = madcows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
-    clustersDr5_MC = pd.DataFrame(
-        {
-            'name': pd.concat([dr5['name'], madcows_table['Name']], ignore_index=True),
-            'RADeg': pd.concat([radegDr5, radegMC], ignore_index=True),
-            'decDeg': pd.concat([decdegDr5, decdegMC], ignore_index=True)
-        }
-    )
-    return clustersDr5_MC
+    needed_cols = ["name", "ra_deg", "dec_deg"]
+    clusters_dr5_mc = pd.concat([dr5[needed_cols], mc[needed_cols]], ignore_index=True)
 
-"""Create sample from dr5 clsuter catalogue"""
+    return clusters_dr5_mc
+
 
 def createNegativeClassDR5():
-    clustersDr5_MC = concat_tables()
+
+    """Create sample from dr5 clsuter catalogue"""
+
+    clusters = get_all_clusters()
+    
     dr5 = read_dr5()
-    imap_98 = enmap.read_fits(f"{working_path}{location}{mapACT}")[0]
+
+    
+    # Needed only for reading metadata and map generation?
+    imap_98 = enmap.read_fits(settings.MAP_ACT_PATH)[0]
 
     positions = np.array(np.rad2deg(imap_98.posmap()))
     ras, decs = positions[1].ravel(), positions[0].ravel()
 
-    rac = ras[np.random.choice(len(ras), size=100000, replace=False)] + np.random.normal(-0.1,0.1, 100000)
-    dec = decs[np.random.choice(len(decs), size=100000, replace=False)] + np.random.normal(-0.1,0.1, 100000)
+    catalog = coord.SkyCoord(ra = clusters['ra_deg']*u.degree, dec = clusters['dec_deg']*u.degree, unit = 'deg')
 
-    ra, de, name = [], [], []
+    candidates = coord.SkyCoord(ra = ras*u.degree, dec = decs*u.degree, unit = 'deg')
 
-    c = coord.SkyCoord(ra = clustersDr5_MC['RADeg']*u.degree, dec = clustersDr5_MC['decDeg']*u.degree, unit = 'deg')
+    _, d2d, _ = candidates.match_to_catalog_sky(catalog)
 
-    for rac_val, dec_val in zip(rac, dec):
-        coords = coord.SkyCoord(ra=rac_val*u.degree, dec=dec_val*u.degree, frame='icrs')
-        idx, d2d, d3d = coords.match_to_catalog_sky(c)
-        if d2d.arcmin < 10:
-            continue
-        b, l = coords.galactic.b.degree, coords.galactic.l.degree
-        if b > 20:
-            ra.append(coords.ra.degree)
-            de.append(coords.dec.degree)
-            name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(dr5):
-                break
+    MIN_ANGLE = 10
+    MAX_ANGLE = 20
 
-    n = len(ra)
+    candidates_filter = (d2d.arcmin>MIN_ANGLE) & (candidates.galactic.b.degree > MAX_ANGLE)
 
-    dfNegativeFromDr5 = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
-    return dfNegativeFromDr5
+    filtered_candidates = candidates[candidates_filter]
+
+    b_values = filtered_candidates.galactic.b.degree
+    l_values = filtered_candidates.galactic.l.degree
+
+    names = [f'Rand {l:.3f}{b:+.3f}' for l, b in zip(l_values, b_values)]
+    filtered_candidates.ra.deg
+    filtered_candidates.dec.deg
+
+    data = pd.DataFrame(
+        np.array([
+            names,
+            filtered_candidates.ra.deg, 
+            filtered_candidates.dec.deg
+        ]).T,
+        columns = ['name', 'ra_deg', 'dec_deg']
+    )
+
+    # Shuffling points to imitate sampling
+    data.sample(frac=1, replace=False, random_state=settings.SEED)
+
+    # Truncating if too much samples
+    # TODO Discuss the aim of sampling technique and improve it
+    data = data.iloc[:len(dr5)]
+
+    return data
 
 
 def create_data_dr5():
@@ -188,10 +212,13 @@ def createNegativeClassMC(radegMC, decdegMC):
 
     for rac_val, dec_val in zip(rac, dec):
         coords = coord.SkyCoord(ra=rac_val*u.degree, dec=dec_val*u.degree, frame='icrs')
+
         idx, d2d, d3d = coords.match_to_catalog_sky(c)
         if d2d.arcmin < 10:
             continue
+
         b, l = coords.galactic.b.degree, coords.galactic.l.degree
+
         if b > 20:
             ra.append(coords.ra.degree)
             de.append(coords.dec.degree)

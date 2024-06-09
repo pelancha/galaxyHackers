@@ -2,6 +2,7 @@
 import os
 import urllib.parse
 
+SEED = 1
 WORKDIR = "./"
 STORAGE_PATH = os.path.join(WORKDIR, "storage/")
 
