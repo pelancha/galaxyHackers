@@ -123,18 +123,30 @@ def createNegativeClassDR5():
 
     clusters = get_all_clusters()
     
+   
+    # The catalog of known found galaxies
+    catalog = coord.SkyCoord(
+        ra = clusters['ra_deg']*u.degree, 
+        dec = clusters['dec_deg']*u.degree, 
+        unit = 'deg'
+        )
+    
+
     dr5 = read_dr5()
 
-    
     # Needed only for reading metadata and map generation?
     imap_98 = enmap.read_fits(settings.MAP_ACT_PATH)[0]
 
     positions = np.array(np.rad2deg(imap_98.posmap()))
     ras, decs = positions[1].ravel(), positions[0].ravel()
 
-    catalog = coord.SkyCoord(ra = clusters['ra_deg']*u.degree, dec = clusters['dec_deg']*u.degree, unit = 'deg')
 
-    candidates = coord.SkyCoord(ra = ras*u.degree, dec = decs*u.degree, unit = 'deg')
+    # Just points from our sky map
+    candidates = coord.SkyCoord(
+        ra = ras*u.degree, 
+        dec = decs*u.degree, 
+        unit = 'deg'
+    )
 
     _, d2d, _ = candidates.match_to_catalog_sky(catalog)
 
@@ -201,6 +213,11 @@ def createNegativeClassDec(x):
 """Create sample from MadCows catalogue"""
 
 def createNegativeClassMC(radegMC, decdegMC):
+
+    clusters = get_all_clusters()
+
+
+    
     clustersDr5_MC = concat_tables()
 
     rac = radegMC[np.random.choice(len(radegMC), size=10000)].apply(lambda x: createNegativeClassRac(x))
