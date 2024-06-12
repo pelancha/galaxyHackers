@@ -24,6 +24,7 @@ from zipfile import ZipFile
 
 import settings
 import sys
+np.random.seed(settings.SEED)
 
 def bar_progress(current, total, width=80):
   progress_message = "Downloading: %d%% [%d / %d] bytes" % (current / total * 100, current, total)
@@ -117,12 +118,9 @@ def get_all_clusters():
     return clusters_dr5_mc
 
 
-def createNegativeClassDR5():
-
-    """Create sample from dr5 clsuter catalogue"""
+def get_cluster_catalog() -> coord.SkyCoord:
 
     clusters = get_all_clusters()
-    
    
     # The catalog of known found galaxies
     catalog = coord.SkyCoord(
@@ -131,14 +129,105 @@ def createNegativeClassDR5():
         unit = 'deg'
         )
     
+    return catalog
+    
 
-    dr5 = read_dr5()
+def filter_candiates(candidates: coord.SkyCoord, max_len: int) -> coord.SkyCoord:
+    
+    catalog = get_cluster_catalog()
+
+    _, d2d, _ = candidates.match_to_catalog_sky(catalog)
+
+    MIN_ANGLE = 10
+    MAX_ANGLE = 20
+
+    candidates_filter = (d2d.arcmin>MIN_ANGLE) & (candidates.galactic.b.degree > MAX_ANGLE)
+
+    filtered_candidates = candidates[candidates_filter][: max_len]
+
+    return filtered_candidates
+
+
+def candidates_to_df(candidates: coord.SkyCoord) -> pd.DataFrame:
+
+    b_values = candidates.galactic.b.degree
+    l_values = candidates.galactic.l.degree
+
+    names = [f'Rand {l:.3f}{b:+.3f}' for l, b in zip(l_values, b_values)]
+
+    data = pd.DataFrame(
+        np.array([
+            names,
+            candidates.ra.deg, 
+            candidates.dec.deg
+        ]).T,
+        columns = ['name', 'ra_deg', 'dec_deg']
+    )
+
+    return data
+    
+
+def generate_candidates_dr5() -> coord.SkyCoord:
 
     # Needed only for reading metadata and map generation?
     imap_98 = enmap.read_fits(settings.MAP_ACT_PATH)[0]
 
+    # Generating positions of every pixel of telescope's sky zone
     positions = np.array(np.rad2deg(imap_98.posmap()))
     ras, decs = positions[1].ravel(), positions[0].ravel()
+
+    # Shuffling candidates, imitating samples
+    np.random.seed(settings.SEED)
+    np.random.shuffle(ras)
+    np.random.shuffle(decs)
+
+    # Just points from our sky map
+    candidates = coord.SkyCoord(
+        ra = ras*u.degree, 
+        dec = decs*u.degree, 
+        unit = 'deg'
+    )
+
+    return candidates
+
+
+def create_negative_class_dr5():
+
+    """Create sample from dr5 clsuter catalogue"""
+
+    dr5 = read_dr5()
+
+    candidates = generate_candidates_dr5()
+   
+    filtered_candidates = filter_candiates(candidates, max_len=len(dr5))
+
+    frame = candidates_to_df(filtered_candidates)
+
+    return frame
+
+
+def create_data_dr5():
+    clusters = read_dr5()
+    clusters = clusters[['name', 'ra_deg', 'dec_deg']]
+    clusters['target'] = 1
+    random = create_negative_class_dr5()
+    random['target'] = 0
+    data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
+
+    return data_dr5
+
+
+
+
+def generate_candidates_mc():
+    """Create sample from MadCows catalogue"""
+
+    n_sim = 10_000
+
+    np.random.seed(settings.SEED)
+
+    ras = np.random.uniform(0, 360, n_sim)
+    decs = np.random.uniform(-90, 90, n_sim)
 
 
     # Just points from our sky map
@@ -148,123 +237,64 @@ def createNegativeClassDR5():
         unit = 'deg'
     )
 
-    _, d2d, _ = candidates.match_to_catalog_sky(catalog)
+    return candidates
 
-    MIN_ANGLE = 10
-    MAX_ANGLE = 20
+def create_negative_class_mc():
 
-    candidates_filter = (d2d.arcmin>MIN_ANGLE) & (candidates.galactic.b.degree > MAX_ANGLE)
+  
+    mc = read_mc()
 
-    filtered_candidates = candidates[candidates_filter]
+    candidates = generate_candidates_mc()
+   
+    filtered_candidates = filter_candiates(candidates, max_len=len(mc))
 
-    b_values = filtered_candidates.galactic.b.degree
-    l_values = filtered_candidates.galactic.l.degree
-
-    names = [f'Rand {l:.3f}{b:+.3f}' for l, b in zip(l_values, b_values)]
-    filtered_candidates.ra.deg
-    filtered_candidates.dec.deg
-
-    data = pd.DataFrame(
-        np.array([
-            names,
-            filtered_candidates.ra.deg, 
-            filtered_candidates.dec.deg
-        ]).T,
-        columns = ['name', 'ra_deg', 'dec_deg']
-    )
-
-    # Shuffling points to imitate sampling
-    data.sample(frac=1, replace=False, random_state=settings.SEED)
-
-    # Truncating if too much samples
-    # TODO Discuss the aim of sampling technique and improve it
-    data = data.iloc[:len(dr5)]
-
-    return data
+    frame = candidates_to_df(filtered_candidates)
 
 
-def create_data_dr5():
-    clusters = read_dr5()
+    return frame
 
-    clusters = clusters[['name', 'RADeg', 'decDeg']].reset_index(drop=True)
-    clusters.rename(columns = {'name': 'Component_name', 'RADeg': 'RA', 'decDeg': 'DEC'}, inplace = True )
+def create_data_mc():
+    clusters = read_mc()
+    clusters = clusters[['name', 'ra_deg', 'dec_deg']]
     clusters['target'] = 1
-    random = createNegativeClassDR5()
-    random['target'] = 0
-    data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
-
-    return data_dr5
-
-'''Randomiser for sample from MaDCoWS'''
-
-def createNegativeClassRac(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 360 or (x + randChoice) < 0:
-      randChoice = np.random.normal(-15, 15)
-    return x + randChoice
-
-
-def createNegativeClassDec(x):
-    randChoice = np.random.normal(-15, 15)
-    while (x + randChoice) > 90 or (x + randChoice) < -90:
-        randChoice = np.random.normal(-15, 15)
-    return x + randChoice
-
-"""Create sample from MadCows catalogue"""
-
-def createNegativeClassMC(radegMC, decdegMC):
-
-    clusters = get_all_clusters()
-
-
-    
-    clustersDr5_MC = concat_tables()
-
-    rac = radegMC[np.random.choice(len(radegMC), size=10000)].apply(lambda x: createNegativeClassRac(x))
-    dec = decdegMC[np.random.choice(len(decdegMC), size=10000)].apply(lambda x: createNegativeClassDec(x))
-    rac, dec = rac.ravel(), dec.ravel()
-
-    ra, de, name = [], [], []
-    c = coord.SkyCoord(ra = clustersDr5_MC['RADeg']*u.degree, dec = clustersDr5_MC['decDeg']*u.degree, unit = 'deg')
-
-    for rac_val, dec_val in zip(rac, dec):
-        coords = coord.SkyCoord(ra=rac_val*u.degree, dec=dec_val*u.degree, frame='icrs')
-
-        idx, d2d, d3d = coords.match_to_catalog_sky(c)
-        if d2d.arcmin < 10:
-            continue
-
-        b, l = coords.galactic.b.degree, coords.galactic.l.degree
-
-        if b > 20:
-            ra.append(coords.ra.degree)
-            de.append(coords.dec.degree)
-            name.append(f'Rand {l:.3f}{b:+.3f}')
-            if len(ra) == len(radegMC): # number of madcows clusters
-                break
-
-    n = len(ra)
-
-    dfNegativeFromMadcows = pd.DataFrame({'Component_name': name, 'RA': ra, 'DEC': de})
-
-    return dfNegativeFromMadcows
-
-def create_data_madcows():
-    madcows_table = readMC()
-    radegMC = madcows_table.iloc[:, 1].apply(lambda x: Angle(toHmsFormat(x)).degree)
-    decdegMC = madcows_table.iloc[:, 2].apply(lambda x: Angle(toDmsFormat(x)).degree)
-    clusters = pd.DataFrame({'Component_name': madcows_table['Name'], 'RA': radegMC, 'DEC': decdegMC})
-    clusters['target'] = 1
-    random = createNegativeClassMC(radegMC, decdegMC)
+    random = create_negative_class_mc()
     random['target'] = 0
     data_madcows = pd.concat([clusters, random]).reset_index(drop=True)
     return data_madcows
+
+# class MNISTDataset(Dataset):
+#     def __init__(self, images_dir_path: str,
+#                  description_csv_path: str):
+#         super().__init__()
+        
+#         self.images_dir_path = images_dir_path
+#         self.description_df = pd.read_csv(description_csv_path,
+#                                            dtype={'image_name': str, 'label': int})
+
+#     def __len__(self):
+#         return len(self.description_df)
+    
+#     def __getitem__(self, index):
+#         img_name, label = self.description_df.iloc[index, :]
+        
+#         img_path = Path(self.images_dir_path, f'{img_name}.png')
+#         img = self._read_img(img_path)
+        
+#         return dict(sample=img, label=label)
+    
+#     @staticmethod
+#     def _read_img(img_path: Path):
+#         img = cv2.imread(str(img_path.resolve()))
+#         img = img.astype(np.float32)
+#         img = np.transpose(img, (2, 0, 1))
+        
+#         return img
 
 """Split samples into train, validation and tests and get pictures from legacy survey"""
 
 def train_val_test_split():
     data_dr5 = create_data_dr5()
-    data_madcows = create_data_madcows()
+    data_madcows = create_data_mc()
 
     folderlocation = f'{working_path}{location}'
     folders = ['train', 'val', 'test_dr5', 'test_madcows']
