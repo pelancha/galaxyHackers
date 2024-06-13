@@ -191,34 +191,6 @@ def generate_candidates_dr5() -> coord.SkyCoord:
     return candidates
 
 
-def create_negative_class_dr5():
-
-    """Create sample from dr5 clsuter catalogue"""
-
-    dr5 = read_dr5()
-
-    candidates = generate_candidates_dr5()
-   
-    filtered_candidates = filter_candiates(candidates, max_len=len(dr5))
-
-    frame = candidates_to_df(filtered_candidates)
-
-    return frame
-
-
-def create_data_dr5():
-    clusters = read_dr5()
-    clusters = clusters[['name', 'ra_deg', 'dec_deg']]
-    clusters['target'] = 1
-    random = create_negative_class_dr5()
-    random['target'] = 0
-    data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
-
-    return data_dr5
-
-
-
-
 def generate_candidates_mc():
     """Create sample from MadCows catalogue"""
 
@@ -239,6 +211,23 @@ def generate_candidates_mc():
 
     return candidates
 
+
+
+def create_negative_class_dr5():
+
+    """Create sample from dr5 clsuter catalogue"""
+
+    dr5 = read_dr5()
+
+    candidates = generate_candidates_dr5()
+   
+    filtered_candidates = filter_candiates(candidates, max_len=len(dr5))
+
+    frame = candidates_to_df(filtered_candidates)
+
+    return frame
+
+
 def create_negative_class_mc():
 
   
@@ -253,14 +242,30 @@ def create_negative_class_mc():
 
     return frame
 
+
+def create_data_dr5():
+    clusters = read_dr5()
+    clusters = clusters[['name', 'ra_deg', 'dec_deg']]
+    clusters['target'] = 1
+    random = create_negative_class_dr5()
+    random['target'] = 0
+    data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
+
+    data_dr5[["ra_deg", "dec_deg"]] =  data_dr5[["ra_deg", "dec_deg"]].astype(float)
+
+    return data_dr5
+
 def create_data_mc():
     clusters = read_mc()
     clusters = clusters[['name', 'ra_deg', 'dec_deg']]
     clusters['target'] = 1
     random = create_negative_class_mc()
     random['target'] = 0
-    data_madcows = pd.concat([clusters, random]).reset_index(drop=True)
-    return data_madcows
+    data_mc = pd.concat([clusters, random]).reset_index(drop=True)
+
+    data_mc[["ra_deg", "dec_deg"]] =  data_mc[["ra_deg", "dec_deg"]].astype(float)
+
+    return data_mc
 
 # class MNISTDataset(Dataset):
 #     def __init__(self, images_dir_path: str,
@@ -293,58 +298,46 @@ def create_data_mc():
 """Split samples into train, validation and tests and get pictures from legacy survey"""
 
 def train_val_test_split():
-    data_dr5 = create_data_dr5()
-    data_madcows = create_data_mc()
+    dr5 = create_data_dr5()
+    test_mc = create_data_mc()
 
-    folderlocation = f'{working_path}{location}'
-    folders = ['train', 'val', 'test_dr5', 'test_madcows']
+    folders = ['train', 'validate', 'test_dr5', 'test_mc']
 
     for folder in folders:
-        path = os.path.join(folderlocation, folder)
+        path = os.path.join(settings.STORAGE_PATH, folder)
         os.makedirs(path, exist_ok=True)
 
-        for iter1 in range(2):
-            subpath = os.path.join(path, str(iter1))
-            os.makedirs(subpath, exist_ok=True)
+    train, validate, test_dr5 = \
+              np.split(dr5.sample(frac=1, random_state=1), 
+                       [int(.6*len(dr5)), int(.8*len(dr5))])
+    
 
-    X_train, X_test, y_train, y_test = train_test_split(data_dr5.index, data_dr5['target'], test_size=0.2, random_state=1)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=1)
+    pairs = [
+        ("train", train),
+        ("validate", validate),
+        ("test_dr5", test_dr5),
+        ("test_mc", test_mc)
+    ]
 
-    train = data_dr5.iloc[X_train].reset_index(drop=True)
-    val = data_dr5.iloc[X_val].reset_index(drop=True)
-    test_dr5 = data_dr5.iloc[X_test].reset_index(drop=True)
-
-    train_0 = train[train.target == 0].reset_index(drop=True)
-    train_1 = train[train.target == 1].reset_index(drop=True)
-
-    val_0 = val[val.target == 0].reset_index(drop=True)
-    val_1 = val[val.target == 1].reset_index(drop=True)
-
-    test_dr5_0 = test_dr5[test_dr5.target == 0].reset_index(drop=True)
-    test_dr5_1 = test_dr5[test_dr5.target == 1].reset_index(drop=True)
-
-    test_madcows_0 = data_madcows[data_madcows.target == 0].reset_index(drop=True)
-    test_madcows_1 = data_madcows[data_madcows.target == 1].reset_index(drop=True)
-
-    list_train, list_val = [train_0, train_1], [val_0, val_1]
-    list_test_dr5, list_test_MC = [test_dr5_0, test_dr5_1], [test_madcows_0, test_madcows_1]
-    return list_train, list_val, list_test_dr5, list_test_MC
+    return pairs
 
 
 def ddos():
-    list_train, list_val, list_test_dr5, list_test_MC = train_val_test_split()
-    train_0, train_1 = list_train
-    val_0, val_1 = list_val
-    test_dr5_0, test_dr5_1 = list_test_dr5
-    test_madcows_0, test_madcows_1 = list_test_MC
-
-    folders = [(train_0, 'train/0'), (train_1, 'train/1'), (val_0, 'val/0'), (val_1, 'val/1'),
-               (test_dr5_0, 'test_dr5/0'), (test_dr5_1, 'test_dr5/1'), (test_madcows_0, 'test_madcows/0'),
-               (test_madcows_1, 'test_madcows/1')]
-    for subfolder, subfolder_name in folders:
-        output_dir = f'{working_path}{location}{subfolder_name}'
-        legacy_for_img.grab_cutouts(target_file=subfolder, output_dir=output_dir, survey='unwise-neo7', imgsize_pix=224, file_format='jpg')
-
+    
+    pairs = train_val_test_split()
+    for folder, description in pairs:
+        
+        path = os.path.join(settings.STORAGE_PATH, folder)
+        legacy_for_img.grab_cutouts(
+            target_file=description, 
+            name_col="name",
+            ra_col="ra_deg",
+            dec_col="dec_deg",
+            output_dir=path, 
+            survey='unwise-neo7', 
+            imgsize_pix=224, 
+            file_format='jpg'
+            )
 """Create dataloaders"""
 
 def imshow(inp, title=None):
