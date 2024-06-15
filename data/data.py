@@ -21,6 +21,10 @@ from torch.utils.data import DataLoader
 import skimage
 import data.legacy_for_img as legacy_for_img
 from zipfile import ZipFile 
+from PIL import Image
+from pathlib import Path
+
+import cv2
 
 import settings
 import sys
@@ -267,33 +271,42 @@ def create_data_mc():
 
     return data_mc
 
-# class MNISTDataset(Dataset):
-#     def __init__(self, images_dir_path: str,
-#                  description_csv_path: str):
-#         super().__init__()
+from torch.utils.data import Dataset
+class ClusterDataset(Dataset):
+    def __init__(self, images_dir_path: str,
+                 description_csv_path: str,
+                 transform=None):
+        super().__init__()
         
-#         self.images_dir_path = images_dir_path
-#         self.description_df = pd.read_csv(description_csv_path,
-#                                            dtype={'image_name': str, 'label': int})
+        self.images_dir_path = images_dir_path
+        self.description_df = pd.read_csv(description_csv_path,
+                                           dtype={'idx': str, 'target': int})
+        
+        self.transform = transform
 
-#     def __len__(self):
-#         return len(self.description_df)
+    def __len__(self):
+        return len(self.description_df)
     
-#     def __getitem__(self, index):
-#         img_name, label = self.description_df.iloc[index, :]
+    def __getitem__(self, index):
+        img_name, label = self.description_df.iloc[index][["idx", 'target']]
         
-#         img_path = Path(self.images_dir_path, f'{img_name}.png')
-#         img = self._read_img(img_path)
+        img_path = Path(self.images_dir_path, f'{img_name}.jpg')
+        img = self._read_img(img_path)
+
         
-#         return dict(sample=img, label=label)
+        if self.transform:
+            img = self.transform(img)
+
+        sample = {"image": img, "label": label}
+
+        return sample
     
-#     @staticmethod
-#     def _read_img(img_path: Path):
-#         img = cv2.imread(str(img_path.resolve()))
-#         img = img.astype(np.float32)
-#         img = np.transpose(img, (2, 0, 1))
-        
-#         return img
+    @staticmethod
+    def _read_img(img_path: Path):
+        img = Image.open(str(img_path.resolve()))
+        return img
+    
+    
 
 """Split samples into train, validation and tests and get pictures from legacy survey"""
 
@@ -340,82 +353,66 @@ def ddos():
             )
 """Create dataloaders"""
 
-def imshow(inp, title=None):
-    """Imshow for Tensor."""
-    inp = inp.numpy().transpose((1, 2, 0))
-    mean = np.array([0.507, 0.487, 0.441])
-    std = np.array([0.267, 0.256, 0.276])
-    inp = std * inp + mean
-    inp = np.clip(inp, 0, 1)
-    plt.imshow(inp)
-    if title is not None:
-        plt.title(title)
-    plt.axis('off')
-    plt.pause(0.001)  # pause a bit so that plots are updated
+TORCHVISION_MEAN = torch.Tensor([0.485, 0.456, 0.406])
+TORCHVISION_STD = torch.Tensor([0.229, 0.224, 0.225])
 
+
+def show_original(img):
+    denormalized_img = img.clone()
+    for channel, m, s in zip(denormalized_img, TORCHVISION_MEAN, TORCHVISION_STD):
+        channel.mul_(s).add_(m)
+
+    denormalized_img = denormalized_img.numpy()
+    plt.imshow(np.transpose(denormalized_img, (1, 2, 0)))
+
+
+main_transforms = [
+    transforms.ToTensor(),
+    transforms.Resize((224,224)),
+    transforms.Normalize(mean=TORCHVISION_MEAN,
+                            std=TORCHVISION_STD),
+]
+
+from enum import Enum 
+
+class DataPart(str, Enum):
+    TRAIN = "train"
+    VAL = "val"
+    TEST_DR5 = "test_dr5"
+    TEST_MC = "test_mc"
 
 def create_dataloaders():
-    if (not os.path.exists(location) or 
-      len(os.listdir(location)) == 0):
-        os.makedirs(data_out, exist_ok=True)
-        try:
-            wget.download(url=data_wget, out=data_out)
-            with ZipFile(f"{zipped_data_out}", 'r') as zObject: 
-                zObject.extractall(path=f"{data_out}")
-            os.remove(f"{zipped_data_out}")
-        except:
-            ddos()
-        else:
-            if (not os.path.exists(location) or 
-                  len(os.listdir(location)) == 0):
-                ddos()
 
     data_transforms = {
-        'train': transforms.Compose([
-            transforms.Resize((224,224)),
+        DataPart.TRAIN : transforms.Compose([
+            *main_transforms,
             transforms.RandomRotation(15,),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
         ]),
-        'val': transforms.Compose([
-            transforms.Resize((224,224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
-        ]),
-         'test_dr5': transforms.Compose([
-            transforms.Resize((224,224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
-        ]),
-          'test_madcows': transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
-        ]),
+        DataPart.VAL: transforms.Compose(main_transforms),
+        DataPart.TEST_DR5 : transforms.Compose(main_transforms),
+        DataPart.TEST_MC: transforms.Compose(main_transforms),
     }
 
-    folderlocation = f'{working_path}{location}'
+    custom_datasets = {}
+    dataloaders = {}
+    for part in list(DataPart):
 
-    image_datasets = {x: datasets.ImageFolder(os.path.join(folderlocation, x),
-                                              data_transforms[x])
-                      for x in ['train', 'val', 'test_dr5', 'test_madcows']}
-    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=64,
-                                                 shuffle=True, num_workers=3)
-                  for x in ['train', 'val', 'test_dr5', 'test_madcows']}
+        dataset = ClusterDataset(
+            os.path.join(settings.STORAGE_PATH, part.value),
+            os.path.join(settings.STORAGE_PATH, "description", f"{part.value}.csv"),
+            transform= data_transforms[part]
+        )
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test_dr5', 'test_madcows']}
-
-    class_names = image_datasets['train'].classes
-
-    print(f'There are {len(class_names)} classes\nSize of train is {dataset_sizes["train"]}\n\tvalidation is {dataset_sizes["val"]}\n\ttest_dr5 is {dataset_sizes["test_dr5"]}\n\ttest_madcows is {dataset_sizes["test_madcows"]}')
+        custom_datasets[part] = dataset
+        dataloaders[part] = DataLoader(dataset, batch_size=64)
 
 
     # Get a batch of training data
-    inputs, classes = next(iter(dataloaders['train']))
+    batch = next(iter(dataloaders[DataPart.TRAIN]))
 
     # Make a grid from batch
-    out = utils.make_grid(inputs)
-    imshow(out)
+    out = utils.make_grid(batch["image"])
+    show_original(out)
 
-    return dataloaders
+    return custom_datasets, dataloaders
