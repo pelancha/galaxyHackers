@@ -1,5 +1,5 @@
-FORMAT_DIRS=python_server
-LINTER_DIRS=python_server
+FORMAT_DIRS=data
+LINTER_DIRS=data
 TOML_FILES=poetry.lock pyproject.toml
 POETRY_EXEC=poetry
 PYTHON_EXEC=$(POETRY_EXEC) run python
