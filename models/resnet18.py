@@ -3,7 +3,7 @@ import torch.nn as nn
 from torchvision import models
 
 class ResNet18(nn.Module):
-    def __init__(self, num_classes=1):
+    def __init__(self, num_classes=2):
         super(ResNet18, self).__init__()
         self.resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         num_ftrs = self.resnet.fc.in_features
@@ -19,7 +19,7 @@ class ResNet18(nn.Module):
         x = self.resnet(x)
         return x
 
-def load_model(num_classes=1):
+def load_model(num_classes=2):
     model = ResNet18(num_classes=num_classes)
     return model
 
