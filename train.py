@@ -102,6 +102,7 @@ class Trainer:
                 self.history["train_acc"].append(acc)
                 self.global_step += 1
 
+
             model.eval()
             val_losses = []
             val_accs = []

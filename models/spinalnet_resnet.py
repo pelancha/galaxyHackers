@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision.models as models
 
 class SpinalNet_ResNet(nn.Module):
-    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=1):
+    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=2):
         super(SpinalNet_ResNet, self).__init__()
         self.half_in_size = half_in_size
         self.fc_spinal_layer1 = nn.Sequential(
@@ -20,7 +20,7 @@ class SpinalNet_ResNet(nn.Module):
             nn.ReLU(inplace=True),)
         self.fc_out = nn.Sequential(
             nn.Linear(layer_width*4, num_class),
-            nn.Softmax()
+            nn.Softmax(dim=1)
 )
 
     def forward(self, x):
@@ -39,7 +39,7 @@ class SpinalNet_ResNet(nn.Module):
         return x
 
 
-def load_model(num_class=1):
+def load_model(num_class=2):
     model_ft = models.wide_resnet101_2(weights=models.Wide_ResNet101_2_Weights.DEFAULT)
     num_ftrs = model_ft.fc.in_features
 

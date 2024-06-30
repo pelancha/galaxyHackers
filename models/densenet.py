@@ -3,7 +3,7 @@ import torch.nn as nn
 import timm
 
 class SpinalNet_DenseNet(nn.Module):
-    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=1):
+    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=2):
         super(SpinalNet_DenseNet, self).__init__()
         self.half_in_size = half_in_size
         self.fc_spinal_layer1 = nn.Sequential(
@@ -20,7 +20,7 @@ class SpinalNet_DenseNet(nn.Module):
             nn.ReLU(inplace=True))
         self.fc_out = nn.Sequential(
             nn.Linear(layer_width * 4, num_class),
-            nn.Softmax()
+            nn.Softmax(dim=1)
 )
 
     def forward(self, x):
@@ -36,7 +36,7 @@ class SpinalNet_DenseNet(nn.Module):
         x = self.fc_out(x)
         return x
 
-def load_model(num_class=1):
+def load_model(num_class=2):
     model = timm.create_model('densenet121', pretrained=True)
     num_ftrs = model.classifier.in_features
     half_in_size = round(num_ftrs / 2)

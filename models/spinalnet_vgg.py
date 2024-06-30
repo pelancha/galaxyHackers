@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision.models as models
 
 class SpinalNet_VGG(nn.Module):
-    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=1):
+    def __init__(self, num_ftrs, half_in_size, layer_width, num_class=2):
         super(SpinalNet_VGG, self).__init__()
         self.half_in_size = half_in_size
 
@@ -30,7 +30,7 @@ class SpinalNet_VGG(nn.Module):
         self.fc_out = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Linear(layer_width*4, num_class),
-            nn.Softmax()
+            nn.Softmax(dim=1)
 )
 
     def forward(self, x):
@@ -46,7 +46,7 @@ class SpinalNet_VGG(nn.Module):
         x = self.fc_out(x)
         return x
 
-def load_model(num_class=1):
+def load_model(num_class=2):
     model_ft = models.vgg19_bn(weights=models.VGG19_BN_Weights.DEFAULT)
     num_ftrs = model_ft.classifier[0].in_features
     half_in_size = round(num_ftrs/2)
