@@ -89,7 +89,7 @@ class Trainer:
             train_losses = []
             for batch in tqdm(self.train_dataloader, unit="batch"):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
-                loss, acc = self.compute_all(batch)
+                *_, loss, acc = self.compute_all(batch)
 
                 train_losses.append(loss)
                 optimizer.zero_grad()
@@ -105,13 +105,13 @@ class Trainer:
             model.eval()
             val_losses = []
             val_accs = []
+
             for batch in tqdm(self.train_dataloader):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
-                loss, acc = self.compute_all(batch)
+                *_, loss, acc = self.compute_all(batch)
                 val_losses.append(loss.item())
                 val_accs.append(acc)
 
-      
             val_loss = np.mean(val_losses)
             val_acc = np.mean(val_accs)
             self.post_val_stage(val_loss)
@@ -124,6 +124,25 @@ class Trainer:
                 self.save_checkpoint()
                 best_loss = val_loss
 
+    def test(self, test_dataloader: DataLoader):
+
+        test_losses = []
+        test_accs = []
+
+        y_pred, y_probs, y_true = [], [], []
+
+        for batch in tqdm(test_dataloader):
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+            logits, outputs, labels, loss, acc = self.compute_all(batch)
+            test_losses.append(loss.item())
+            test_accs.append(acc)
+
+            y_probs.extend(logits[:, 1].data.cpu().numpy().ravel())
+            y_pred.extend(outputs)
+            y_true.extend(labels)
+
+        return y_pred, y_probs, y_true, test_losses, test_accs
+
 
 
     def compute_all(self, batch):  # удобно сделать функцию, в которой вычисляется лосс по пришедшему батчу
@@ -134,10 +153,13 @@ class Trainer:
         loss = self.criterion(logits[:, 1], y.float())
 
         assert logits.shape[1] == 2, logits.shape
-        acc = (logits.argmax(axis=1) == y).float().mean().cpu().numpy()
+
+        outputs = logits.argmax(axis=1)
+        acc = (outputs == y).float().mean().cpu().numpy()
         
 
-        return loss, acc
+
+        return logits, outputs, y, loss, acc
     
 
     def cache_states(self):
