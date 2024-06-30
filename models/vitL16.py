@@ -6,7 +6,8 @@ import timm
 class Sigm(nn.Module):
     def __init__(self):
         super(Sigm, self).__init__()
-        self.fc_out = nn.Sequential(nn.Dropout(p = 0.5), nn.Linear(1024, 1), nn.Sigmoid())
+        self.fc_out = nn.Sequential(nn.Dropout(p = 0.5), nn.Linear(1024, 1), nn.Softmax()
+)
 
     def forward(self, x):
         x = self.fc_out(x)

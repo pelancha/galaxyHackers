@@ -30,7 +30,8 @@ class SpinalNet_VGG(nn.Module):
         self.fc_out = nn.Sequential(
             nn.Dropout(p=0.5),
             nn.Linear(layer_width*4, num_class),
-            nn.Sigmoid())
+            nn.Softmax()
+)
 
     def forward(self, x):
         x1 = self.fc_spinal_layer1(x[:, 0:self.half_in_size])

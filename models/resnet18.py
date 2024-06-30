@@ -12,7 +12,7 @@ class ResNet18(nn.Module):
             nn.ReLU(inplace=True),
             nn.Dropout(),
             nn.Linear(512, num_classes),
-            nn.Sigmoid()
+            nn.Softmax()
         )
 
     def forward(self, x):

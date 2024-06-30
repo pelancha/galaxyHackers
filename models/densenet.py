@@ -20,7 +20,8 @@ class SpinalNet_DenseNet(nn.Module):
             nn.ReLU(inplace=True))
         self.fc_out = nn.Sequential(
             nn.Linear(layer_width * 4, num_class),
-            nn.Sigmoid())
+            nn.Softmax()
+)
 
     def forward(self, x):
         x1 = self.fc_spinal_layer1(x[:, 0:self.half_in_size])

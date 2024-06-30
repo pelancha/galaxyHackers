@@ -15,7 +15,8 @@ class AlexNet_VGG(nn.Module):
             nn.ReLU(inplace=True),
             nn.Dropout(),
             nn.Linear(4096, num_class),
-            nn.Sigmoid()
+            nn.Softmax()
+
         )
 
         self.classifier = VGG_fc
