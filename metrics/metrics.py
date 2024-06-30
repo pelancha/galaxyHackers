@@ -43,7 +43,9 @@ def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, pa
 
 def modelPerformance(model_name, optimizer_name,
                      y_train_target, y_train_predicted, y_train_classified,
-                     classes, result, val_result):
+                     classes, 
+                    #  result, val_result
+                     ):
     '''
     Plots ROC and Precision-Recall curves, change of loss and accuracy throughout training,
     confusion matrix and its weighted version and saves them in .png files,
@@ -123,5 +125,7 @@ def modelPerformance(model_name, optimizer_name,
     w_cmDisp = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
     plt.savefig(f'metrics/{model_name}_{optimizer_name}_WeightedConfusionMatrix.png')
     plt.close()
-    plot_loss_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_losses.png')
-    plot_accuracies_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_accuracies.png')
+
+    # TODO Is it needed if we have wandb?
+    # plot_loss_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_losses.png')
+    # plot_accuracies_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_accuracies.png')
