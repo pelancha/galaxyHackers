@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms, utils
 
 import data.legacy_for_img as legacy_for_img
-import settings
+from config import settings
 
 
 np.random.seed(settings.SEED)
@@ -76,22 +76,22 @@ def download_data():
 
     for config in [settings.MAP_ACT_CONFIG, settings.DR5_CONFIG]:
 
-        if not os.path.exists(config["OUTPUT_PATH"]):
+        if not os.path.exists(config.OUTPUT_PATH):
             try:
                 wget.download(
-                    url=config["URL"], out=settings.STORAGE_PATH, bar=bar_progress
+                    url=config.URL, out=settings.STORAGE_PATH, bar=bar_progress
                 )
-                with ZipFile(config["ZIPPED_OUTPUT_PATH"], "r") as zObject:
+                with ZipFile(config.ZIPPED_OUTPUT_PATH, "r") as zObject:
                     zObject.extractall(path=settings.STORAGE_PATH)
-                rename_dict = config["RENAME_DICT"]
+                rename_dict = config.RENAME_DICT
 
-                os.rename(rename_dict["SOURCE"], rename_dict["TARGET"])
-                os.remove(config["ZIPPED_OUTPUT_PATH"])
+                os.rename(rename_dict.SOURCE, rename_dict.TARGET)
+                os.remove(config.ZIPPED_OUTPUT_PATH)
             except Exception:
                 # Getting 403, what credentials needed?
                 wget.download(
-                    url=config["FALLBACK_URL"],
-                    out=config["OUTPUT_PATH"],
+                    url=config.FALLBACK_URL,
+                    out=config.OUTPUT_PATH,
                     bar=bar_progress,
                 )
 
@@ -406,8 +406,8 @@ def create_dataloaders():
     for part in list(DataPart):
 
         dataset = ClusterDataset(
-            os.path.join(settings.STORAGE_PATH, part.value),
-            os.path.join(settings.STORAGE_PATH, "description", f"{part.value}.csv"),
+            os.path.join(settings.DATA_PATH, part.value),
+            os.path.join(settings.DATA_PATH, "description", f"{part.value}.csv"),
             transform=data_transforms[part],
         )
 

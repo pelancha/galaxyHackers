@@ -16,10 +16,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from tqdm import trange
 from copy import deepcopy
 from collections import defaultdict
-import settings
-
-
-bet_models_folder = os.path.join(settings.STORAGE_PATH, "best_models")
+from config import settings
 
 class Trainer:
     def __init__(self, model: nn.Module,
@@ -71,7 +68,7 @@ class Trainer:
     def save_checkpoint(self):
         
         filename = f'best_weights_{self.model.__class__.__name__}_{self.optimizer.__class__.__name__}_weights.pth'
-        path = os.path.join(bet_models_folder, filename)
+        path = os.path.join(settings.BEST_MODELS_PATH, filename)
         
         torch.save(self.model.state_dict(), path)
 
