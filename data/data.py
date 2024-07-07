@@ -79,10 +79,10 @@ def download_data():
         if not os.path.exists(config.OUTPUT_PATH):
             try:
                 wget.download(
-                    url=config.URL, out=settings.STORAGE_PATH, bar=bar_progress
+                    url=config.URL, out=settings.DATA_PATH, bar=bar_progress
                 )
                 with ZipFile(config.ZIPPED_OUTPUT_PATH, "r") as zObject:
-                    zObject.extractall(path=settings.STORAGE_PATH)
+                    zObject.extractall(path=settings.DATA_PATH)
                 rename_dict = config.RENAME_DICT
 
                 os.rename(rename_dict.SOURCE, rename_dict.TARGET)
@@ -330,7 +330,7 @@ def train_val_test_split():
     test_mc = create_data_mc()
 
     for part in list(DataPart):
-        path = os.path.join(settings.STORAGE_PATH, part.value)
+        path = os.path.join(settings.DATA_PATH, part.value)
         os.makedirs(path, exist_ok=True)
 
     train, validate, test_dr5 = np.split(
@@ -352,7 +352,7 @@ def ddos():
     pairs = train_val_test_split()
     for part, description in pairs:
 
-        path = os.path.join(settings.STORAGE_PATH, part.value)
+        path = os.path.join(settings.DATA_PATH, part.value)
         legacy_for_img.grab_cutouts(
             target_file=description,
             name_col="name",
@@ -383,8 +383,19 @@ main_transforms = [
     transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
 ]
 
+def check_catalogs():
+
+    is_map = os.path.exists(settings.MAP_ACT_PATH)
+    is_dr5 = os.path.exists(settings.DR5_CLUSTERS_PATH)
+
+    if not is_map or not is_dr5:
+        download_data()
 
 def create_dataloaders():
+
+    check_catalogs()
+
+    ddos()
 
     data_transforms = {
         DataPart.TRAIN: transforms.Compose(
