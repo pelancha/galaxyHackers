@@ -150,7 +150,7 @@ def createNegativeClassDR5():
 def create_data_dr5():
     clusters = read_dr5()
 
-    clusters = clusters[['name', 'RADeg', 'decDeg']].reset_index(drop=True)
+    clusters = clusters[['name', 'RADeg', 'decDeg', 'redshift', 'M500c']].reset_index(drop=True)
     clusters.rename(columns = {'name': 'Component_name', 'RADeg': 'RA', 'decDeg': 'DEC'}, inplace = True )
     clusters['target'] = 1
     random = createNegativeClassDR5()
