@@ -13,9 +13,9 @@ import argparse
 import torch_optimizer as optimizer
 import wandb
 
-from data.config import wandb_api_token
+from config import settings
 
-from models.train import train, validate, continue_training
+from train import train, validate, continue_training
 
 import models.spinalnet_resnet as spinalnet_resnet
 import models.effnet as effnet
@@ -26,9 +26,9 @@ import models.alexnet_vgg as alexnet_vgg
 import models.resnet18 as resnet18
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-dataloader = data.create_dataloaders()
+custom_datasets, dataloader = data.create_dataloaders()
 train_loader = dataloader['train']
-val_loader = dataloader['val']
+val_loader = dataloader['validate']
 
 models = [
     ('ResNet18', resnet18.load_model()),
@@ -71,17 +71,17 @@ lr = args.lr
 momentum = args.mm
 optimizer_name = args.optimizer
 
-# criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss()
 
-criterion = nn.BCELoss()
+#criterion = nn.BCELoss()
 
 results = {}
 val_results = {}
 test_loader = dataloader["test_dr5"]
 classes = ('random', 'clusters')
 
-if wandb_api_token:
-    wandb.login(key=wandb_api_token)
+if settings.wandb_api_token:
+    wandb.login(key=settings.wandb_api_token)
     wandb.init(project='cluster-search', config=args, reinit=True)
 else:
     wandb.init(project='cluster-search', config=args, reinit=True)
