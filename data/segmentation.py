@@ -19,7 +19,7 @@ import os
 import matplotlib as mpl
 from matplotlib import cm
 import data.data as data
-from data.config import *
+from config import settings
 from zipfile import ZipFile 
 import wget
 
