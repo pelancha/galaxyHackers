@@ -267,7 +267,7 @@ def create_data_dr5():
     random = create_negative_class_dr5()
     random["target"] = 0
     data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
-
+    data_dr5["idx"] = data_dr5.index.astype(str)
     data_dr5[["ra_deg", "dec_deg"]] = data_dr5[["ra_deg", "dec_deg"]].astype(float)
 
     return data_dr5
@@ -282,7 +282,7 @@ def create_data_mc():
     data_mc = pd.concat([clusters, random]).reset_index(drop=True)
 
     data_mc[["ra_deg", "dec_deg"]] = data_mc[["ra_deg", "dec_deg"]].astype(float)
-
+    data_mc["idx"] = data_mc.index.astype(str)
     return data_mc
 
 
@@ -332,6 +332,8 @@ def train_val_test_split():
     for part in list(DataPart):
         path = os.path.join(settings.DATA_PATH, part.value)
         os.makedirs(path, exist_ok=True)
+        description_path = os.path.join(settings.DATA_PATH, "description")
+        os.makedirs(description_path, exist_ok=True)
 
     train, validate, test_dr5 = np.split(
         dr5.sample(frac=1, random_state=1), [int(0.6 * len(dr5)), int(0.8 * len(dr5))]
@@ -343,6 +345,11 @@ def train_val_test_split():
         (DataPart.TEST_DR5, test_dr5),
         (DataPart.TEST_MC, test_mc),
     ]
+
+    for part, data in pairs:
+        description_file = os.path.join(settings.DATA_PATH, "description", f"{part.value}.csv")
+        data.to_csv(description_file, index=False)
+
 
     return pairs
 
