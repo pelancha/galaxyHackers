@@ -1,6 +1,7 @@
-
 import os
 import urllib.parse
+
+wandb_api_token = ""
 
 SEED = 1
 WORKDIR = "./"
