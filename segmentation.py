@@ -4,7 +4,7 @@ To create segmentation maps for randomly chosen clusters, random objects and sta
 To create a segmentation map with larger scale for a randomly chosen cluster use function saveBigSegMap()
 '''
 
-import data.legacy_for_img as legacy_for_img
+import legacy_for_img
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,47 +18,13 @@ from astropy import units as u
 import os
 import matplotlib as mpl
 from matplotlib import cm
-import data.data as data
-from data.config import *
+import data
+from config import settings
 from zipfile import ZipFile 
 import wget
 
 
-class ImageSet(Dataset):
-    def __init__(self, dir, transform=None):
-        self.data_dir = dir
-        self.images = os.listdir(dir)
-        self.images.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
-        self.transform = transform
-
-    # Defining the length of the dataset
-    def __len__(self):
-        return len(self.images)
-
-    # Defining the method to get an item from the dataset
-    def __getitem__(self, index):
-        image_path = os.path.join(self.data_dir, self.images[index])
-        image = Image.open(image_path)
-
-        # Applying the transform
-        if self.transform:
-            image = self.transform(image)
-
-        return image
-
-
-def prepare_gaia():
-    data_gaia = data.read_gaia()
-# gaia might have already been collected with the rest of data during dataloaders creation
-    if (not os.path.exists(gaia_sample_location) or
-        len(os.listdir(gaia_sample_location)) == 0):
-      os.makedirs(gaia_sample_location, exist_ok=True)
-      legacy_for_img.grab_cutouts(target_file=data_gaia, output_dir=gaia_sample_location,
-                                          survey='unwise-neo7', imgsize_pix = 224*8, file_format='jpg' )
-    return data_gaia
-
-
-def predict_folder(folder, model, optimizer_name, device='cuda:0'):
+def predict_loader(loader: DataLoader, model, optimizer_name, device='cuda'):
     model = model.to(device)
     loaded_model = torch.load(f"{working_path}state_dict/best_{model.__class__.__name__}_{optimizer_name}_weights.pth", map_location=device)
     model.load_state_dict(loaded_model)

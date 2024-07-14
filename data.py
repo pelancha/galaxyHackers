@@ -21,10 +21,10 @@ from astroquery.gaia import Gaia
 from astroquery.vizier import Vizier
 from PIL import Image
 from pixell import enmap
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 
-import data.legacy_for_img as legacy_for_img
+import legacy_for_img
 from config import settings
 
 
@@ -39,6 +39,42 @@ class DataPart(str, Enum):
     VALIDATE = "validate"
     TEST_DR5 = "test_dr5"
     TEST_MC = "test_mc"
+    GAIA = "gaia"
+
+
+
+class ClusterDataset(Dataset):
+    def __init__(self, images_dir_path: str, description_csv_path: str, transform=None):
+        super().__init__()
+
+        self.images_dir_path = images_dir_path
+        self.description_df = pd.read_csv(
+            description_csv_path, dtype={"idx": str, "target": int}
+        )
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.description_df)
+
+    def __getitem__(self, index):
+        img_name, label = self.description_df.iloc[index][["idx", "target"]]
+
+        img_path = Path(self.images_dir_path, f"{img_name}.jpg")
+        img = self._read_img(img_path)
+
+        if self.transform:
+            img = self.transform(img)
+
+        sample = {"image": img, "label": label}
+
+        return sample
+
+    @staticmethod
+    def _read_img(img_path: Path):
+        img = Image.open(str(img_path.resolve()))
+        return img
+
 
 
 def bar_progress(current, total, width=80):
@@ -62,9 +98,9 @@ def read_gaia():
     )
     gaiaResponse = job.get_results().to_pandas()
     data_gaia = (
-        gaiaResponse.sample(n=1000)
+        gaiaResponse.sample(frac=1, random_state=settings.SEED)
         .reset_index(drop=True)
-        .rename(columns={"DESIGNATION": "Component_name", "ra": "RA", "dec": "DEC"})
+        .rename(columns={"DESIGNATION": "name", "ra": "ra_deg", "dec": "dec_deg"})
     )
     return data_gaia
 
@@ -267,7 +303,6 @@ def create_data_dr5():
     random = create_negative_class_dr5()
     random["target"] = 0
     data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
-    data_dr5["idx"] = data_dr5.index.astype(str)
     data_dr5[["ra_deg", "dec_deg"]] = data_dr5[["ra_deg", "dec_deg"]].astype(float)
 
     return data_dr5
@@ -282,44 +317,7 @@ def create_data_mc():
     data_mc = pd.concat([clusters, random]).reset_index(drop=True)
 
     data_mc[["ra_deg", "dec_deg"]] = data_mc[["ra_deg", "dec_deg"]].astype(float)
-    data_mc["idx"] = data_mc.index.astype(str)
     return data_mc
-
-
-from torch.utils.data import Dataset
-
-
-class ClusterDataset(Dataset):
-    def __init__(self, images_dir_path: str, description_csv_path: str, transform=None):
-        super().__init__()
-
-        self.images_dir_path = images_dir_path
-        self.description_df = pd.read_csv(
-            description_csv_path, dtype={"idx": str, "target": int}
-        )
-
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.description_df)
-
-    def __getitem__(self, index):
-        img_name, label = self.description_df.iloc[index][["idx", "target"]]
-
-        img_path = Path(self.images_dir_path, f"{img_name}.jpg")
-        img = self._read_img(img_path)
-
-        if self.transform:
-            img = self.transform(img)
-
-        sample = {"image": img, "label": label}
-
-        return sample
-
-    @staticmethod
-    def _read_img(img_path: Path):
-        img = Image.open(str(img_path.resolve()))
-        return img
 
 
 """Split samples into train, validation and tests and get pictures from legacy survey"""
@@ -329,8 +327,7 @@ def train_val_test_split():
     dr5 = create_data_dr5()
     test_mc = create_data_mc()
 
-    description_path = os.path.join(settings.DATA_PATH, "description")
-    os.makedirs(description_path, exist_ok=True)
+
 
     for part in list(DataPart):
         path = os.path.join(settings.DATA_PATH, part.value)
@@ -341,25 +338,30 @@ def train_val_test_split():
         dr5.sample(frac=1, random_state=1), [int(0.6 * len(dr5)), int(0.8 * len(dr5))]
     )
 
+    gaia = read_gaia()
+
+
     pairs = [
         (DataPart.TRAIN, train),
         (DataPart.VALIDATE, validate),
         (DataPart.TEST_DR5, test_dr5),
         (DataPart.TEST_MC, test_mc),
+        (DataPart.GAIA, gaia)
     ]
-
-    for part, data in pairs:
-        description_file = os.path.join(description_path, f"{part.value}.csv")
-        data.to_csv(description_file, index=False)
-
 
     return pairs
 
 
 def ddos():
 
+    description_path = os.path.join(settings.DATA_PATH, "description")
+    os.makedirs(description_path, exist_ok=True)
+
     pairs = train_val_test_split()
     for part, description in pairs:
+
+        description_file_path = os.path.join(description_path, f"{part.value}.csv")
+        description.to_csv(description_file_path, index=False)
 
         path = os.path.join(settings.DATA_PATH, part.value)
         legacy_for_img.grab_cutouts(
@@ -369,7 +371,7 @@ def ddos():
             dec_col="dec_deg",
             output_dir=path,
             survey="unwise-neo7",
-            imgsize_pix=224,
+            imgsize_pix=224*8 if part == DataPart.GAIA else 224,
             file_format="jpg",
         )
 

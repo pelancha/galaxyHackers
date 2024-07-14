@@ -6,9 +6,9 @@ from torch.utils.data import random_split, DataLoader
 import os
 import timm
 import numpy as np
-import data.data as data
-import data.segmentation as segmentation
-import metrics.metrics as metrics
+import data
+import segmentation
+import metrics
 import argparse
 import torch_optimizer as optimizer
 import wandb
