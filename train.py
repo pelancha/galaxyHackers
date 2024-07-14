@@ -12,6 +12,7 @@ import time
 import numpy as np
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
+from typing import Any
 
 from tqdm import trange
 from copy import deepcopy
@@ -21,9 +22,9 @@ from config import settings
 class Trainer:
     def __init__(self, model: nn.Module,
                  optimizer: Optimizer,
-                 criterion, 
                  train_dataloader: DataLoader,
                  val_dataloader: DataLoader,
+                 criterion: Any | None = None, 
                  lr_scheduler: LRScheduler | None = None,
                  lr_scheduler_type: str | None = None,
                  batch_size: int = 128):
@@ -142,11 +143,15 @@ class Trainer:
         return y_pred, y_probs, y_true, test_losses, test_accs
 
 
+  
 
     def compute_all(self, batch):  # удобно сделать функцию, в которой вычисляется лосс по пришедшему батчу
         x = batch['image']
         y = batch['label']
         logits = self.model(x)
+
+        assert self.criterion is not None 
+
 
         loss = self.criterion(logits[:, 1], y.float())
 
@@ -170,3 +175,38 @@ class Trainer:
         self.model.load_state_dict(self.cache['model_state'])
         self.optimizer.load_state_dict(self.cache['optimizer_state'])
 
+
+class Predictor():
+
+    def __init__(self, model:nn.Module, device):
+
+        
+        self.model = model
+        self.model.eval()
+
+        self.device = device
+
+
+    def predict(self, dataloader: DataLoader):
+
+        y_pred, y_probs = [], []
+
+        for batch in tqdm(dataloader):
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+
+            outputs, logits = self.compute_all(batch)
+
+            y_pred.extend(outputs)
+            y_probs.extend(logits[:, 1].data.cpu().numpy().ravel())
+
+        return np.array(y_pred), np.array(y_probs)
+    
+
+    def compute_all(self, batch): 
+        x = batch['image']
+        logits = self.model(x)
+
+        outputs = logits.argmax(axis=1)
+
+
+        return logits, outputs

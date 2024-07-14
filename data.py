@@ -42,7 +42,6 @@ class DataPart(str, Enum):
     GAIA = "gaia"
 
 
-
 class ClusterDataset(Dataset):
     def __init__(self, images_dir_path: str, description_csv_path: str, transform=None):
         super().__init__()

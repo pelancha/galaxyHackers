@@ -22,31 +22,23 @@ import data
 from config import settings
 from zipfile import ZipFile 
 import wget
+from pathlib import Path
 
+from train import Predictor
 
-def predict_loader(loader: DataLoader, model, optimizer_name, device='cuda'):
+def predict_loader(loader: DataLoader, model, optimizer_name, device):
+    
     model = model.to(device)
-    loaded_model = torch.load(f"{working_path}state_dict/best_{model.__class__.__name__}_{optimizer_name}_weights.pth", map_location=device)
+    weights_name = f'best_weights_{model.__class__.__name__}_{optimizer_name}.pth'
+    weights_path = Path(settings.BEST_MODELS_PATH, weights_name )
+    loaded_model = torch.load(weights_path, map_location=device)
+
     model.load_state_dict(loaded_model)
-    model.eval()
 
-    trans = transforms.Compose([
-        transforms.Resize((224,224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
-    ])
+    predictor = Predictor(model=model, device=device)
 
-    data = ImageSet(folder, transform=trans)
-    data_load = DataLoader(data, batch_size = 5, shuffle=False)
-    probs = np.array([])
-    for i, data in enumerate(data_load):
-        if hasattr(torch.cuda, 'empty_cache'):
-            torch.cuda.empty_cache()
-        img = data.to(device)
+    _, probs = predictor.predict(dataloader=loader)
 
-        #model prediction
-        outputs = model(img)
-        probs = np.append(probs, outputs.data.cpu().detach().numpy())
     return np.array(probs)
 
 
@@ -55,20 +47,7 @@ def predict_tests(model, optimizer_name):
     if not (os.path.exists(clusters_out) and
             os.path.exists(randoms_out)):
         test_dr_0, test_dr_1 = data.train_val_test_split()[2]
-        if (not os.path.exists(location) or
-            len(os.listdir(f'{madcows_sample_location}1')) == 0):
-            os.makedirs(data_out, exist_ok=True)
-            try:
-                wget.download(url=data_wget, out=data_out)
-                with ZipFile(f"{zipped_data_out}", 'r') as zObject:
-                    zObject.extractall(path=f"{data_out}")
-                os.remove(f"{zipped_data_out}")
-            except:
-                data.ddos()
-            else:
-                if (not os.path.exists(location) or
-                        len(os.listdir(location)) == 0):
-                    data.ddos()
+        
         if not os.path.exists(clusters_out):
             clust = test_dr_1
             clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
@@ -91,54 +70,58 @@ def predict_tests(model, optimizer_name):
     clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
     return samples
 
+class SamplesPart(str, Enum):
+
+    CLUSTER = "cluster"
+    RANDOM = "random"
+    GAIA = "gaia"
 
 def create_samples(model, optimizer_name):
-    os.makedirs(segmentation_maps_pics, exist_ok=True)
-
-    path = segmentation_maps_pics + 'Cl/'
-    os.makedirs(path, exist_ok=True)
-    path = segmentation_maps_pics + 'R/'
-    os.makedirs(path, exist_ok=True)
-    path = segmentation_maps_pics + 'GAIA/'
-    os.makedirs(path, exist_ok=True)
-
-    for iter1 in range(10):    # 100 = number of classes
-        path = segmentation_maps_pics + 'Cl/'+str(iter1)
-        os.makedirs(path, exist_ok=True)
-    for iter1 in range(5):    # 100 = number of classes
-        path = segmentation_maps_pics + 'R/'+str(iter1)
-        os.makedirs(path, exist_ok=True)
-        path = segmentation_maps_pics + 'GAIA/'+str(iter1)
+    
+    for part in list(SamplesPart):
+        path = Path(settings.SEGMENTATION_SAMPLES_PATH, part.value)
         os.makedirs(path, exist_ok=True)
 
-    if not (os.path.exists(clusters_out) and
-            os.path.exists(randoms_out) and
-            os.path.exists(stars_out)):
-        samples = predict_tests(model, optimizer_name)
-        samples_final = []
-        count = 0
-        for test in samples:
-            if count == 0:
-                sample_size = 10
-                count += 1
-            else: 
-                sample_size = 5
+
+    # for iter1 in range(10):    # 100 = number of classes
+    #     path = segmentation_maps_pics + 'Cl/'+str(iter1)
+    #     os.makedirs(path, exist_ok=True)
+    # for iter1 in range(5):    # 100 = number of classes
+    #     path = segmentation_maps_pics + 'R/'+str(iter1)
+    #     os.makedirs(path, exist_ok=True)
+    #     path = segmentation_maps_pics + 'GAIA/'+str(iter1)
+    #     os.makedirs(path, exist_ok=True)
+
+    # if not (os.path.exists(clusters_out) and
+    #         os.path.exists(randoms_out) and
+    #         os.path.exists(stars_out)):
+    samples = predict_tests(model, optimizer_name)
+    samples_final = []
+    count = 0
+    for test in samples:
+        if count == 0:
+            sample_size = 10
+            count += 1
+        else: 
+            sample_size = 5
+        sample_for_map = test.sample(sample_size).reset_index(drop=True)
+        max_ra = sample_for_map['RA'].max()
+        max_de = sample_for_map['DEC'].max()
+        min_ra = sample_for_map['RA'].min()
+        min_de =  sample_for_map['DEC'].min()
+        required_space = 10 / 120 #shift for small segmentation maps / 2
+        while ((max_ra + required_space) > 360 or
+                (max_de + required_space) > 90 or
+                (min_de - required_space) < -90 or
+                (min_ra - required_space) < 0):
             sample_for_map = test.sample(sample_size).reset_index(drop=True)
             max_ra = sample_for_map['RA'].max()
             max_de = sample_for_map['DEC'].max()
             min_ra = sample_for_map['RA'].min()
-            min_de =  sample_for_map['DEC'].min()
-            required_space = 10 / 120 #shift for small segmentation maps / 2
-            while ((max_ra + required_space) > 360 or
-                  (max_de + required_space) > 90 or
-                  (min_de - required_space) < -90 or
-                  (min_ra - required_space) < 0):
-                sample_for_map = test.sample(sample_size).reset_index(drop=True)
-                max_ra = sample_for_map['RA'].max()
-                max_de = sample_for_map['DEC'].max()
-                min_ra = sample_for_map['RA'].min()
-                min_de = sample_for_map['DEC'].min()
-            samples_final.append(sample_for_map)
+            min_de = sample_for_map['DEC'].min()
+        samples_final.append(sample_for_map)
+
+
     samples_final[0].to_csv(clusters_out, index=False)
     samples_final[1].to_csv(randoms_out, index=False)
     samples_final[2].to_csv(stars_out, index=False)
