@@ -8,6 +8,7 @@ from sklearn.metrics import precision_recall_curve
 
 import matplotlib.pyplot as plt
 
+from config import settings
 
 def plot_loss_by_model(model_name: str, result: dict, val_result: dict, path: str):
     plt.figure(figsize=(10, 6))
@@ -85,7 +86,7 @@ def modelPerformance(model_name, optimizer_name,
     fpr = fp/(fp+tn)
 
     # save metrics in .txt file
-    with open('metrics/record_metrics.txt', 'a', encoding='utf8') as w_file:
+    with open(f'{settings.METRICS_DIR}/record_metrics.txt', 'a', encoding='utf8') as w_file:
         w_file.write(f'{model_name}; {optimizer_name} \n')
         w_file.write(('Test accuracy: %.2f %%' % (acc*100)) + '\n')
         w_file.write(('Test Precision: %.2f %%' % (modelPrecision*100)) + '\n')
@@ -103,7 +104,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.ylabel('True Positive Rate, TPR')
     plt.title('ROC curve')
     plt.grid(True, linestyle='--', alpha=0.5)
-    plt.savefig(f'metrics/{model_name}_{optimizer_name}_ROC.png')
+    plt.savefig(f'{settings.METRICS_DIR}/{model_name}_{optimizer_name}_ROC.png')
     plt.close()
     # plot precision recall
 
@@ -113,17 +114,17 @@ def modelPerformance(model_name, optimizer_name,
     plt.ylabel('Precision')
     plt.title('Precision-Recall curve')
     plt.grid(True, linestyle='--', alpha=0.5)
-    plt.savefig(f'metrics/{model_name}_{optimizer_name}_Precision_Recall_curve.png')
+    plt.savefig(f'{settings.METRICS_DIR}/{model_name}_{optimizer_name}_Precision_Recall_curve.png')
     plt.close()
     # confusion matrices
     e_00, e_11 = cm[0, 0] / (cm[0, 0] + cm[0, 1]), cm[1, 1] / (cm[1, 0] + cm[1, 1])
     weighted_cm = np.array([[e_00, 1 - e_00], [1 - e_11, e_11]])
 
     cmDisp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes).plot()
-    plt.savefig(f'metrics/{model_name}_{optimizer_name}_ConfusionMatrix.png')
+    plt.savefig(f'{settings.METRICS_DIR}/{model_name}_{optimizer_name}_ConfusionMatrix.png')
     plt.close()
     w_cmDisp = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
-    plt.savefig(f'metrics/{model_name}_{optimizer_name}_WeightedConfusionMatrix.png')
+    plt.savefig(f'{settings.METRICS_DIR}/{model_name}_{optimizer_name}_WeightedConfusionMatrix.png')
     plt.close()
 
     # TODO Is it needed if we have wandb?
