@@ -25,6 +25,13 @@ poetry shell
 poetry install
 ```
 
+Caught a strange error (MacOS Sonoma). Installing library pixell through poetry is failing.
+Solution:
+
+poetry shell
+pip install pixell=={version from pyproject.toml}
+poetry install
+
 ## Usage
 
 ### Unpacking existing dataset
