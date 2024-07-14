@@ -329,11 +329,13 @@ def train_val_test_split():
     dr5 = create_data_dr5()
     test_mc = create_data_mc()
 
+    description_path = os.path.join(settings.DATA_PATH, "description")
+    os.makedirs(description_path, exist_ok=True)
+
     for part in list(DataPart):
         path = os.path.join(settings.DATA_PATH, part.value)
         os.makedirs(path, exist_ok=True)
-        description_path = os.path.join(settings.DATA_PATH, "description")
-        os.makedirs(description_path, exist_ok=True)
+
 
     train, validate, test_dr5 = np.split(
         dr5.sample(frac=1, random_state=1), [int(0.6 * len(dr5)), int(0.8 * len(dr5))]
@@ -347,7 +349,7 @@ def train_val_test_split():
     ]
 
     for part, data in pairs:
-        description_file = os.path.join(settings.DATA_PATH, "description", f"{part.value}.csv")
+        description_file = os.path.join(description_path, f"{part.value}.csv")
         data.to_csv(description_file, index=False)
 
 

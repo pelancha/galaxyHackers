@@ -7,7 +7,6 @@ settings = Dynaconf(
     settings_files=['settings.toml', '.secrets.toml'],
 )
 
-settings.WORKDIR = settings.get("WORKDIR", "./")
 settings.STORAGE_PATH = os.path.join(settings.WORKDIR, "storage/")
 settings.METRICS_PATH = os.path.join(settings.STORAGE_PATH, "metrics/")
 settings.DATA_PATH = os.path.join(settings.STORAGE_PATH, "data/")
@@ -15,8 +14,6 @@ settings.BEST_MODELS_PATH = os.path.join(settings.STORAGE_PATH, "best_models/")
 
 settings.MAP_ACT_PATH = os.path.join(settings.DATA_PATH, settings.MAP_ACT_FILENAME)
 settings.DR5_CLUSTERS_PATH = os.path.join(settings.DATA_PATH, settings.DR5_CLUSTERS_FILENAME)
-
-settings.wandb_api_token = ""
 
 settings.MAP_ACT_CONFIG = {
     "RENAME_DICT" : {
