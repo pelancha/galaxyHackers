@@ -11,13 +11,17 @@ settings = Dynaconf(
 settings.STORAGE_PATH = Path(settings.WORKDIR, "storage/")
 settings.METRICS_PATH = Path(settings.STORAGE_PATH, "metrics/")
 settings.DATA_PATH = Path(settings.STORAGE_PATH, "data/")
+settings.DESCRIPTION_PATH = Path(settings.DATA_PATH, "description/")
 settings.BEST_MODELS_PATH = Path(settings.STORAGE_PATH, "best_models/")
+settings.PREDICTIONS_PATH = Path(settings.STORAGE_PATH, "predictions/")
 
 settings.MAP_ACT_PATH = Path(settings.DATA_PATH, settings.MAP_ACT_FILENAME)
 settings.DR5_CLUSTERS_PATH = Path(settings.DATA_PATH, settings.DR5_CLUSTERS_FILENAME)
 
 settings.SEGMENTATION_PATH = Path(settings.STORAGE_PATH, "segmentation/")
 settings.SEGMENTATION_SAMPLES_PATH = Path(settings.SEGMENTATION_PATH, "samples/")
+settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH = Path(settings.SEGMENTATION_SAMPLES_PATH, "description/")
+
 
 settings.MAP_ACT_CONFIG = {
     "RENAME_DICT" : {
@@ -46,9 +50,11 @@ required_paths = [
     settings.STORAGE_PATH, 
     settings.METRICS_PATH, 
     settings.DATA_PATH, 
+    settings.DESCRIPTION_PATH,
     settings.BEST_MODELS_PATH,
     settings.SEGMENTATION_PATH,
-    settings.SEGMENTATION_SAMPLES_PATH
+    settings.SEGMENTATION_SAMPLES_PATH,
+    settings.PREDICTIONS_PATH
 ]
 
 

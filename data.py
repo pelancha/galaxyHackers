@@ -65,7 +65,7 @@ class ClusterDataset(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        sample = {"image": img, "label": label}
+        sample = {"idx": img_name, "image": img, "label": label}
 
         return sample
 
@@ -96,12 +96,13 @@ def read_gaia():
         "where random_index between 0 and 1000000 and phot_g_mean_mag < 12 and parallax is not null"
     )
     gaiaResponse = job.get_results().to_pandas()
-    data_gaia = (
+    gaia_frame = (
         gaiaResponse.sample(frac=1, random_state=settings.SEED)
         .reset_index(drop=True)
         .rename(columns={"DESIGNATION": "name", "ra": "ra_deg", "dec": "dec_deg"})
     )
-    return data_gaia
+
+    return gaia_frame
 
 
 """Obtain ACT_DR5, clusters identified there and in MaDCoWS"""
@@ -139,6 +140,10 @@ def read_dr5():
     dr5_frame["name"] = dr5_frame["name"].astype(str)
 
     dr5_frame = dr5_frame.rename(columns={"RADeg": "ra_deg", "decDeg": "dec_deg"})
+    dr5_frame = dr5_frame.reset_index(drop=True)
+    dr5_frame.index.name = "idx"
+    dr5_frame = dr5_frame.reset_index(drop=False)
+
 
     return dr5_frame
 
@@ -163,16 +168,19 @@ def read_mc():
     catalogs = Vizier.get_catalogs(catalog_list.keys())
 
     interesting_table: atpy.Table = catalogs[os.path.join(CATALOGUE, "table3")]
-    madcows_table = interesting_table.to_pandas().reset_index(drop=True)
+    mc_frame = interesting_table.to_pandas().reset_index(drop=True)
 
-    madcows_table["ra_deg"] = madcows_table["RAJ2000"].apply(
+    mc_frame["ra_deg"] = mc_frame["RAJ2000"].apply(
         lambda x: Angle(to_hms_format(x)).degree
     )
-    madcows_table["dec_deg"] = madcows_table["DEJ2000"].apply(
+    mc_frame["dec_deg"] = mc_frame["DEJ2000"].apply(
         lambda x: Angle(to_dms_format(x)).degree
     )
 
-    return madcows_table.rename(columns={"Name": "name"})
+    mc_frame = mc_frame.rename(columns={"Name": "name"})
+
+
+    return mc_frame
 
 
 def get_all_clusters():
@@ -295,6 +303,7 @@ def create_negative_class_mc():
     return frame
 
 
+
 def create_data_dr5():
     clusters = read_dr5()
     clusters = clusters[["name", "ra_deg", "dec_deg"]]
@@ -303,6 +312,11 @@ def create_data_dr5():
     random["target"] = 0
     data_dr5 = pd.concat([clusters, random]).reset_index(drop=True)
     data_dr5[["ra_deg", "dec_deg"]] = data_dr5[["ra_deg", "dec_deg"]].astype(float)
+
+    data_dr5 = data_dr5.sample(frac=1, random_state=1)
+
+    data_dr5 = data_dr5.reset_index(drop=True)
+    data_dr5.index.name = "idx"
 
     return data_dr5
 
@@ -316,7 +330,21 @@ def create_data_mc():
     data_mc = pd.concat([clusters, random]).reset_index(drop=True)
 
     data_mc[["ra_deg", "dec_deg"]] = data_mc[["ra_deg", "dec_deg"]].astype(float)
+
+    data_mc = data_mc.reset_index(drop=True)
+    data_mc.index.name = "idx"
+
     return data_mc
+
+def create_data_gaia():
+    
+    clusters = read_gaia()
+
+    clusters["target"] = 0
+    data_gaia = clusters.reset_index(drop=True)
+    data_gaia.index.name = "idx"
+
+    return clusters
 
 
 """Split samples into train, validation and tests and get pictures from legacy survey"""
@@ -327,15 +355,21 @@ def train_val_test_split():
     test_mc = create_data_mc()
 
 
-
     for part in list(DataPart):
         path = os.path.join(settings.DATA_PATH, part.value)
         os.makedirs(path, exist_ok=True)
 
 
     train, validate, test_dr5 = np.split(
-        dr5.sample(frac=1, random_state=1), [int(0.6 * len(dr5)), int(0.8 * len(dr5))]
+       dr5, [int(0.6 * len(dr5)), int(0.8 * len(dr5))]
     )
+
+    validate = validate.reset_index(drop=True)
+    validate.index.name = "idx"
+    
+    test_dr5 = test_dr5.reset_index(drop=True)
+    test_dr5.index.name = "idx"
+
 
     gaia = read_gaia()
 
@@ -348,7 +382,7 @@ def train_val_test_split():
         (DataPart.GAIA, gaia)
     ]
 
-    return pairs
+    return dict(pairs)
 
 
 def ddos():
@@ -357,10 +391,10 @@ def ddos():
     os.makedirs(description_path, exist_ok=True)
 
     pairs = train_val_test_split()
-    for part, description in pairs:
+    for part, description in pairs.items():
 
         description_file_path = os.path.join(description_path, f"{part.value}.csv")
-        description.to_csv(description_file_path, index=False)
+        description.to_csv(description_file_path, index=True)
 
         path = os.path.join(settings.DATA_PATH, part.value)
         legacy_for_img.grab_cutouts(
@@ -370,7 +404,7 @@ def ddos():
             dec_col="dec_deg",
             output_dir=path,
             survey="unwise-neo7",
-            imgsize_pix=224*8 if part == DataPart.GAIA else 224,
+            imgsize_pix=224,
             file_format="jpg",
         )
 
@@ -428,12 +462,12 @@ def create_dataloaders():
 
         dataset = ClusterDataset(
             os.path.join(settings.DATA_PATH, part.value),
-            os.path.join(settings.DATA_PATH, "description", f"{part.value}.csv"),
+            os.path.join(settings.DESCRIPTION_PATH, f"{part.value}.csv"),
             transform=data_transforms[part],
         )
 
         custom_datasets[part] = dataset
-        dataloaders[part] = DataLoader(dataset, batch_size=64)
+        dataloaders[part] = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
 
     # Get a batch of training data
     batch = next(iter(dataloaders[DataPart.TRAIN]))

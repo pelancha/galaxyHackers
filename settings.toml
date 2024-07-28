@@ -1,4 +1,5 @@
 SEED = 1
+BATCH_SIZE = 64
 
 MAP_ACT_ROUTE = "act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits"
 DR5_CLUSTERS_ROUTE = "DR5_cluster-catalog_v1.1.fits"

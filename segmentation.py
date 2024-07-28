@@ -24,10 +24,13 @@ from zipfile import ZipFile
 import wget
 from pathlib import Path
 
+from enum import Enum
+
+from data import DataPart, ClusterDataset
 from train import Predictor
 
-def predict_loader(loader: DataLoader, model, optimizer_name, device):
-    
+def load_model(model: torch.nn.Module, optimizer_name, device):
+
     model = model.to(device)
     weights_name = f'best_weights_{model.__class__.__name__}_{optimizer_name}.pth'
     weights_path = Path(settings.BEST_MODELS_PATH, weights_name )
@@ -35,203 +38,214 @@ def predict_loader(loader: DataLoader, model, optimizer_name, device):
 
     model.load_state_dict(loaded_model)
 
+def predict_test(model: torch.nn.Module, optimizer_name):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    load_model(model, optimizer_name, device)
+
     predictor = Predictor(model=model, device=device)
 
-    _, probs = predictor.predict(dataloader=loader)
 
-    return np.array(probs)
+    dataloaders = data.train_val_test_split()
+    for part in [DataPart.TEST_DR5, DataPart.TEST_DR5, DataPart.GAIA]:
+       
+        predictions = predictor.predict(dataloader=dataloaders[part])
+
+        predictions.to_csv(Path(settings.PREDICTIONS_PATH, f"{part}.csv"))
 
 
-def predict_tests(model, optimizer_name):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if not (os.path.exists(clusters_out) and
-            os.path.exists(randoms_out)):
-        test_dr_0, test_dr_1 = data.train_val_test_split()[2]
-        
-        if not os.path.exists(clusters_out):
-            clust = test_dr_1
-            clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
-        else:
-            clust['prob'] = np.zeros(len(clust["RA"])) #only needed to create non-existing samples
-        if not os.path.exists(randoms_out):
-            rand = test_dr_0
-            rand['prob'] = predict_folder(f'{dr5_sample_location}0', model, optimizer_name, device=device)
-        else:
-            rand['prob'] = np.zeros(len(rand["RA"])) #only needed to create non-existing samples
-    
-    if not os.path.exists(randoms_out):
-        gaia = prepare_gaia()
-        gaia['prob'] =  predict_folder(f'{samples_location}test_gaia', model, optimizer_name, device=device)
-    else:
-        gaia['prob'] = np.zeros(len(gaia["RA"])) #only needed to create non-existing samples
-    samples = [clust, rand, gaia]
-
-    clust = test_dr_1
-    clust['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
-    return samples
-
-class SamplesPart(str, Enum):
+class SampleName(str, Enum):
 
     CLUSTER = "cluster"
     RANDOM = "random"
     GAIA = "gaia"
 
-def create_samples(model, optimizer_name):
+
+sample_sizes: dict = {
+    SampleName.CLUSTER: 10,
+    SampleName.RANDOM: 5,
+    SampleName.GAIA: 5,
+}
+
+# Data part and target class for each sample
+sample_soures = {
+    SampleName.CLUSTER: (DataPart.TEST_DR5, 1) ,
+    SampleName.RANDOM: (DataPart.TEST_DR5, 0),
+    SampleName.GAIA: (DataPart.GAIA, 0),
+}
+
+
+class MapType(str, Enum):
+    SMALL = 0
+    BIG = 1
+
+def create_sample(sample_name):
+
+    sample_size = sample_sizes[sample_name]
+    source, target_class = sample_soures[sample_name]
+
+    description = pd.read_csv(Path(settings.DESCRIPTION_PATH, f"{source.value}.csv"), index_col=0)
+
+    description = description.loc[description["target"] == target_class]
+
+
+    min_ra, min_dec = -float("inf"), -float("inf")
+    max_ra, max_dec = float("inf"), float("inf")
     
-    for part in list(SamplesPart):
-        path = Path(settings.SEGMENTATION_SAMPLES_PATH, part.value)
-        os.makedirs(path, exist_ok=True)
+
+    required_space = 10 / 120 #shift for small segmentation maps / 2
+    while ((max_ra + required_space) > 360 or
+            (max_dec + required_space) > 90 or
+            (min_dec - required_space) < -90 or
+            (min_ra - required_space) < 0):
+        
+        sample = description.sample(sample_size, random_state=settings.SEED)
+        max_ra = sample['ra_deg'].max()
+        max_dec = sample['dec_deg'].max()
+        min_ra = sample['ra_deg'].min()
+        min_dec = sample['dec_deg'].min()
+
+    path = Path(settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH, f"{sample_name.value}.csv", index=True)
+    sample.to_csv(path)
+
+    return sample
 
 
-    # for iter1 in range(10):    # 100 = number of classes
-    #     path = segmentation_maps_pics + 'Cl/'+str(iter1)
-    #     os.makedirs(path, exist_ok=True)
-    # for iter1 in range(5):    # 100 = number of classes
-    #     path = segmentation_maps_pics + 'R/'+str(iter1)
-    #     os.makedirs(path, exist_ok=True)
-    #     path = segmentation_maps_pics + 'GAIA/'+str(iter1)
-    #     os.makedirs(path, exist_ok=True)
-
-    # if not (os.path.exists(clusters_out) and
-    #         os.path.exists(randoms_out) and
-    #         os.path.exists(stars_out)):
-    samples = predict_tests(model, optimizer_name)
-    samples_final = []
-    count = 0
-    for test in samples:
-        if count == 0:
-            sample_size = 10
-            count += 1
-        else: 
-            sample_size = 5
-        sample_for_map = test.sample(sample_size).reset_index(drop=True)
-        max_ra = sample_for_map['RA'].max()
-        max_de = sample_for_map['DEC'].max()
-        min_ra = sample_for_map['RA'].min()
-        min_de =  sample_for_map['DEC'].min()
-        required_space = 10 / 120 #shift for small segmentation maps / 2
-        while ((max_ra + required_space) > 360 or
-                (max_de + required_space) > 90 or
-                (min_de - required_space) < -90 or
-                (min_ra - required_space) < 0):
-            sample_for_map = test.sample(sample_size).reset_index(drop=True)
-            max_ra = sample_for_map['RA'].max()
-            max_de = sample_for_map['DEC'].max()
-            min_ra = sample_for_map['RA'].min()
-            min_de = sample_for_map['DEC'].min()
-        samples_final.append(sample_for_map)
 
 
-    samples_final[0].to_csv(clusters_out, index=False)
-    samples_final[1].to_csv(randoms_out, index=False)
-    samples_final[2].to_csv(stars_out, index=False)
+def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_type: MapType):
 
-def createSegMap(id, ra0, dec0, name, dire): #id: 0 for small segmentation maps, 1 - for a big one
+    dataloaders = []
+    
+    for idx, row in data.iterrows():
+
+        directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx)
+
+        dataloader = create_map_dataloader(map_type=map_type, idx=idx, ra_start=row['ra_deg'], dec_start=row['dec_deg'], dir=directory)
+
+        dataloaders.append( idx, dataloader)
+
+
+    return dataloaders
+
+
+def create_map_dataloader(
+        map_type: MapType, 
+        idx_start: int,
+        ra_start: float, 
+        dec_start: float,
+        map_dir: Path): #id: 0 for small segmentation maps, 1 - for a big one
+
     name = []
     ras, decs = [], []
-    match id:
-        case 0:
+
+    match map_type:
+        case MapType.SMALL:
             step = 0.5 / 60 #шаг в 0.5 минуту, выражено в градусах
             #10 минут - максимальное расстояние подряд в одну сторону, 0.5 минута - один шаг, всё *10
             distance = 10
             cycle_step = 5
-        case 1:
+        case MapType.BIG:
             step = 1 / 60 #шаг в 1 минуту, выражено в градусах
             #30 минут - максимальное расстояние подряд в одну сторону, 1 минута - один шаг
             distance = 30
             cycle_step = 1
 
     shift = distance / 2 #подаётся центр карты сегментации, переводим начало в левый верхний угол
-    ra1, dec_current = ra0 - shift, dec0 + shift
+
+    ra_corner = ra_start - shift
+    dec_corner = dec_start + shift
+
     #масштаб в case 0
-    if step == 0.5 / 60:
+    if map_type == MapType.SMALL:
         distance *= 10
+
+
+    dec_current = dec_corner
+
+    idxs = []
+    cur_idx = 0
     #ra шагаем вправо, dec шагаем вниз
-    for i in range(0, distance, cycle_step):
-        ra_current = ra1
-        for j in range(0, distance, cycle_step):
+    for _ in range(0, distance, cycle_step):
+        ra_current = ra_corner
+
+        for _ in range(0, distance, cycle_step):
             coords = coord.SkyCoord(ra=ra_current*u.degree, dec=dec_current*u.degree, frame='icrs')
+
             ras.append(coords.ra.degree)
             decs.append(coords.dec.degree)
+            idxs.append(cur_idx)
+
+            cur_idx += 1
+
+
             b = coords.galactic.b.degree
             l = coords.galactic.l.degree
+
             name.append(f'Map {l:.3f}{b:+.3f}')
+
             ra_current += step
+
             if (0 > ra_current or ra_current > 360):
               break
+
         dec_current -= step
+
         if (-90 > dec_current or dec_current > 90):
           break
 
-    data = pd.DataFrame({'Component_name': name, 'RA': ras, 'DEC': decs})
-    legacy_for_img.grab_cutouts(target_file=data, output_dir=dire,
-                                  survey='unwise-neo7', imgsize_pix = 224*8, file_format='jpg' )
-    # print(data)
-    # return data.shape
+    description_path = Path(map_dir, f"description.csv")
 
+    map_data = pd.DataFrame({'name': name, 'ra_deg': ras, 'dec_deg': decs}, index=pd.Index(idxs, name="idx"))
+    map_data.to_csv(description_path)
 
-def prepare_samples():
-    '''Function to create segmentation maps for chosen samples'''
-    cl5 = pd.read_csv(clusters_out)
-    r5 =  pd.read_csv(randoms_out)
-    gaia5 = pd.read_csv(stars_out)
-    all_samples = [("Clusters", cl5), ("Random", r5), ("Stars", gaia5)]
-    if (not os.path.exists(segmentation_maps_pics) or 
-        len(os.listdir(f'{segmentation_maps_pics}GAIA/4')) == 0):
-        for i in range(10):
-            createSegMap(0, all_samples[0][1].loc[i, 'RA'], all_samples[0][1].loc[i, 'DEC'], all_samples[0][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}Cl/{i}')
-        for i in range(5):
-            createSegMap(0, all_samples[1][1].loc[i, 'RA'], all_samples[1][1].loc[i, 'DEC'], all_samples[1][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}R/{i}')
-            createSegMap(0, all_samples[2][1].loc[i, 'RA'], all_samples[2][1].loc[i, 'DEC'], all_samples[2][1].loc[i, 'Component_name'], dire = f'{segmentation_maps_pics}GAIA/{i}')
-    return all_samples
-
-
-def formSegmentationMaps(model, optimizer_name):
-    if not (os.path.exists(clusters_out) and 
-            os.path.exists(randoms_out) and 
-            os.path.exists(stars_out)):
-        create_samples(model, optimizer_name) #returns csvs
-    all_samples = prepare_samples()
+    legacy_for_img.grab_cutouts(
+        target_file=map_data, 
+        name_col="name",
+        ra_col="ra_deg",
+        dec_col="ra_dec",
+        output_dir=map_dir,         
+        survey='unwise-neo7', 
+        imgsize_pix = 224, 
+        file_format='jpg' )
     
-    prob_clusters, prob_randoms, prob_gaia = [], [], []
 
+    dataset = ClusterDataset(
+        map_dir,
+        description_path,
+        transform=data.main_transforms,
+    )
+
+    dataloader = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
+
+    return dataloader
+
+
+
+def create_segmentation_maps(model, optimizer_name, map_type: MapType=MapType.SMALL):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    for i in range(10):
-        cl_elem_prob = predict_folder(f'{segmentation_maps_pics}Cl/{i}', model, optimizer_name, device=device)
-        if i == 0:
-            cl_prob_range = [cl_elem_prob.min(), cl_elem_prob.max()]
-        else:
-            cl_elem_prob_min, cl_elem_prob_max = cl_elem_prob.min(), cl_elem_prob.max()
-            if cl_elem_prob_min < cl_prob_range[0]:
-                cl_prob_range[0] = cl_elem_prob_min
-            if cl_elem_prob_max > cl_prob_range[1]:
-                cl_prob_range[1] = cl_elem_prob_max
-        prob_clusters.append(cl_elem_prob)
 
-    for i in range(5):
-        rand_elem_prob = predict_folder(f'{segmentation_maps_pics}R/{i}', model, optimizer_name, device=device)
-        gaia_elem_prob = predict_folder(f'{segmentation_maps_pics}GAIA/{i}', model, optimizer_name, device=device)
+    load_model(model, optimizer_name, device)
 
-        if i == 0:
-            rand_prob_range = [rand_elem_prob.min(), rand_elem_prob.max()]
-            gaia_prob_range = [gaia_elem_prob.min(), gaia_elem_prob.max()]
-        else:
-            rand_elem_prob_min, rand_elem_prob_max = rand_elem_prob.min(), rand_elem_prob.max()
-            gaia_elem_prob_min, gaia_elem_prob_max = gaia_elem_prob.min(), gaia_elem_prob.max()
-            if rand_elem_prob_min < rand_prob_range[0]:
-                rand_prob_range[0] = rand_elem_prob_min
-            if rand_elem_prob_max > rand_prob_range[1]:
-                rand_prob_range[1] = rand_elem_prob_max
-            if gaia_elem_prob_min < gaia_prob_range[0]:
-                gaia_prob_range[0] = gaia_elem_prob_min
-            if gaia_elem_prob_max > gaia_prob_range[1]:
-                gaia_prob_range[1] = gaia_elem_prob_max
-        prob_randoms.append(rand_elem_prob)
-        prob_gaia.append(gaia_elem_prob)
+    predictor = Predictor(model)
 
-    ranges = [cl_prob_range, rand_prob_range, gaia_prob_range]
-    predictions = [prob_clusters, prob_randoms, prob_gaia]
-    return all_samples, predictions, ranges
+    for sample_name in list(SampleName):
+        create_segmentation_map(map_type=map_type, predictor=predictor, sample_name=sample_name)
+       
+
+def create_segmentation_map(map_type: MapType, predictor: Predictor, sample_name: SampleName):
+    
+    sample = create_sample(sample_name)
+
+    dataloaders = prepare_sample_dataloaders(data=sample, sample_name=sample_name, map_type=map_type)
+
+    for idx, dataloader in dataloaders:
+
+        predictions = predictor.predict(dataloader)
+
+        path = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx, "predictions.csv")
+
+        predictions.to_csv(path)
 
 
 def saveSegMaps(selected_models, optimizer_name):

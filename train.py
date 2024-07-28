@@ -18,6 +18,7 @@ from tqdm import trange
 from copy import deepcopy
 from collections import defaultdict
 from config import settings
+import pandas as pd
 
 class Trainer:
     def __init__(self, model: nn.Module,
@@ -189,24 +190,40 @@ class Predictor():
 
     def predict(self, dataloader: DataLoader):
 
-        y_pred, y_probs = [], []
+        y_pred, y_prob, y_true, y_names = [], [], [], []
+
 
         for batch in tqdm(dataloader):
             batch = {k: v.to(self.device) for k, v in batch.items()}
 
-            outputs, logits = self.compute_all(batch)
+            outputs, logits, labels, idxs = self.compute_all(batch)
 
             y_pred.extend(outputs)
-            y_probs.extend(logits[:, 1].data.cpu().numpy().ravel())
+            y_prob.extend(logits[:, 1].data.cpu().numpy().ravel())
+            y_true.extend(labels)
+            y_names.extend(idxs)
 
-        return np.array(y_pred), np.array(y_probs)
+
+        predictions = pd.DataFrame([
+            np.array(y_pred), 
+            np.array(y_prob), 
+            np.array(y_true), 
+            np.array(y_names)
+        ], columns=["y_pred", "y_prob", "y_true", "idx"])
+
+        predictions = predictions.set_index("idx").sort_index()
+        
+        return predictions
     
 
     def compute_all(self, batch): 
         x = batch['image']
+        y = batch['label']
+        idx = batch["idx"]
+
         logits = self.model(x)
 
         outputs = logits.argmax(axis=1)
 
 
-        return logits, outputs
+        return logits, outputs, y, idx
