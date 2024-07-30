@@ -20,6 +20,7 @@ from collections import defaultdict
 from config import settings
 import pandas as pd
 
+
 class Trainer:
     def __init__(self, model: nn.Module,
                  optimizer: Optimizer,
@@ -69,7 +70,7 @@ class Trainer:
 
     def save_checkpoint(self):
         
-        filename = f'best_weights_{self.model.__class__.__name__}_{self.optimizer.__class__.__name__}_weights.pth'
+        filename = f'best_weights_{self.model.__class__.__name__}_{self.optimizer.__class__.__name__}.pth'
         path = os.path.join(settings.BEST_MODELS_PATH, filename)
         
         torch.save(self.model.state_dict(), path)
@@ -87,7 +88,7 @@ class Trainer:
             model.train()
             train_losses = []
             for batch in tqdm(self.train_dataloader, unit="batch"):
-                batch = {k: v.to(self.device) for k, v in batch.items()}
+                batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items() }
                 *_, loss, acc = self.compute_all(batch)
 
                 train_losses.append(loss)
@@ -107,7 +108,7 @@ class Trainer:
             val_accs = []
 
             for batch in tqdm(self.train_dataloader):
-                batch = {k: v.to(self.device) for k, v in batch.items()}
+                batch = {k: v.to(self.device)  if k != "idx" else v for k, v in batch.items()}
                 *_, loss, acc = self.compute_all(batch)
                 val_losses.append(loss.item())
                 val_accs.append(acc)
@@ -132,7 +133,7 @@ class Trainer:
         y_pred, y_probs, y_true = [], [], []
 
         for batch in tqdm(test_dataloader):
-            batch = {k: v.to(self.device) for k, v in batch.items()}
+            batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items()}
             logits, outputs, labels, loss, acc = self.compute_all(batch)
             test_losses.append(loss.item())
             test_accs.append(acc)
@@ -190,26 +191,25 @@ class Predictor():
 
     def predict(self, dataloader: DataLoader):
 
-        y_pred, y_prob, y_true, y_names = [], [], [], []
+        y_pred, y_prob, y_names = [], [], []
 
 
         for batch in tqdm(dataloader):
-            batch = {k: v.to(self.device) for k, v in batch.items()}
+            batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items()}
 
-            outputs, logits, labels, idxs = self.compute_all(batch)
+            logits, outputs, idxs = self.compute_all(batch)
 
             y_pred.extend(outputs)
             y_prob.extend(logits[:, 1].data.cpu().numpy().ravel())
-            y_true.extend(labels)
             y_names.extend(idxs)
 
 
-        predictions = pd.DataFrame([
+        predictions = pd.DataFrame(
+        np.array([
             np.array(y_pred), 
-            np.array(y_prob), 
-            np.array(y_true), 
+            np.array(y_prob),
             np.array(y_names)
-        ], columns=["y_pred", "y_prob", "y_true", "idx"])
+        ]).T, columns=["y_pred", "y_prob", "idx"])
 
         predictions = predictions.set_index("idx").sort_index()
         
@@ -217,13 +217,15 @@ class Predictor():
     
 
     def compute_all(self, batch): 
-        x = batch['image']
-        y = batch['label']
-        idx = batch["idx"]
+        try:
+            x = batch['image']
+            idx = batch['idx']
+        except:
+            raise ValueError(list(batch.keys()))
 
         logits = self.model(x)
 
         outputs = logits.argmax(axis=1)
 
 
-        return logits, outputs, y, idx
+        return logits, outputs, idx

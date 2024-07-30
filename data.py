@@ -49,7 +49,8 @@ class ClusterDataset(Dataset):
         self.images_dir_path = images_dir_path
         self.description_df = pd.read_csv(
             description_csv_path, dtype={"idx": str, "target": int}
-        )
+        ).head(400)
+
 
         self.transform = transform
 
@@ -57,7 +58,10 @@ class ClusterDataset(Dataset):
         return len(self.description_df)
 
     def __getitem__(self, index):
-        img_name, label = self.description_df.iloc[index][["idx", "target"]]
+
+        row = self.description_df.iloc[index]
+
+        img_name= row["idx"]
 
         img_path = Path(self.images_dir_path, f"{img_name}.jpg")
         img = self._read_img(img_path)
@@ -65,7 +69,11 @@ class ClusterDataset(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        sample = {"idx": img_name, "image": img, "label": label}
+        sample = {"idx": img_name, "image": img}
+
+        if "target" in row:
+            label = self.description_df.iloc[index]["target"]
+            sample["label"] = label
 
         return sample
 
@@ -454,6 +462,7 @@ def create_dataloaders():
         DataPart.VALIDATE: transforms.Compose(main_transforms),
         DataPart.TEST_DR5: transforms.Compose(main_transforms),
         DataPart.TEST_MC: transforms.Compose(main_transforms),
+        DataPart.GAIA: transforms.Compose(main_transforms),
     }
 
     custom_datasets = {}

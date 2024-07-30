@@ -184,7 +184,7 @@ def create_map_dataloader(
         target_file=map_data, 
         name_col="name",
         ra_col="ra_deg",
-        dec_col="ra_dec",
+        dec_col="dec_deg",
         output_dir=map_dir,         
         survey='unwise-neo7', 
         imgsize_pix = 224, 
@@ -194,7 +194,7 @@ def create_map_dataloader(
     dataset = ClusterDataset(
         map_dir,
         description_path,
-        transform=data.main_transforms,
+        transform=transforms.Compose(data.main_transforms),
     )
 
     dataloader = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
@@ -208,11 +208,17 @@ def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_
     
     for idx, row in data.iterrows():
 
-        directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx)
+        directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, str(idx))
+        os.makedirs(directory, exist_ok=True)
 
-        dataloader = create_map_dataloader(map_type=map_type, idx=idx, ra_start=row['ra_deg'], dec_start=row['dec_deg'], dir=directory)
+        dataloader = create_map_dataloader(
+            map_type=map_type, 
+            ra_start=row['ra_deg'], 
+            dec_start=row['dec_deg'], 
+            map_dir=directory
+        )
 
-        dataloaders.append( idx, dataloader)
+        dataloaders.append((idx, dataloader))
 
 
     return dataloaders 
@@ -235,23 +241,27 @@ def create_segmentation_plot(
 
     fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 5))
 
-    for idx, dataloader in dataloaders:
+    for i, (idx, dataloader) in enumerate(dataloaders):
+
+        cur_row = i // n_cols
+        cur_col = i % n_cols
 
         predictions = predictor.predict(dataloader)
 
-        path = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx, "predictions.csv")
+        path = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, str(idx), "predictions.csv")
 
         predictions.to_csv(path)
 
-        axes[idx].plot()
+        axes[cur_row, cur_col].plot()
         # subtitle = "prob: " + "{:.4f}".format(start_probability)
         # axs[idx].set_title(subtitle)
-        im = axes[idx].imshow(predictions["y_prob"].values.reshape(20,20),
+
+        im = axes[cur_row, cur_col].imshow(predictions["y_prob"].values.reshape(20,20).astype(float),
                         cmap = cm.PuBu,
                         vmin = 0,
                         vmax = 1)
-        axes[idx].axis('off')
-        axes[idx].plot(10, 10, 'x', ms=7, color='red')
+        axes[cur_row, cur_col].axis('off')
+        axes[cur_row, cur_col].plot(10, 10, 'x', ms=7, color='red')
 
     fig.colorbar(im, ax=axes.ravel().tolist(), label="Cluster probability", orientation="horizontal", aspect=40)
     # plt.suptitle(all_samples[i][0], size='xx-large')
@@ -260,139 +270,91 @@ def create_segmentation_plot(
     plt.close()
         
 
-def create_segmentation_plots(model, optimizer_name, map_type: MapType=MapType.SMALL):
+def create_segmentation_plots(model, model_name, optimizer_name, map_type: MapType=MapType.SMALL):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     load_model(model, optimizer_name, device)
 
-    predictor = Predictor(model)
+    predictor = Predictor(model, device=device)
 
     for sample_name in list(SampleName):
-        create_segmentation_plot(map_type=map_type, predictor=predictor, sample_name=sample_name)
+        create_segmentation_plot(
+            map_type=map_type,
+            model_name=model_name,
+            optimizer_name=optimizer_name,
+            predictor=predictor,
+            sample_name=sample_name,
 
-def saveSegMaps(selected_models, optimizer_name):
-    '''
-    Creates segmentation maps in 10x10 boxes with 0.5 minute step for 5 randomly chosen clusters from ACT_dr5 dataset,
-    objects from its negative class, stars from GAIA catalogue and saves these three samples separately in segmentation_maps folder
-    '''
-    for model_name, model in selected_models:
-        all_samples, predictions, ranges = formSegmentationMaps(model, optimizer_name)
-        for i in range(len(all_samples)):
-            if i != 0:
-                fig, axs = plt.subplots(nrows=1, ncols=len(all_samples[i][1]), figsize=(15, 5))
-                for j in range(len(axs)):
-                    axs[j].plot()
-                    subtitle = "prob: " + "{:.4f}".format(all_samples[i][1].loc[j, "prob"])
-                    axs[j].set_title(subtitle)
-                    axs[j].imshow(predictions[i][j].reshape(20,20),
-                                  cmap = cm.PuBu,
-                                  vmin = ranges[i][0],
-                                  vmax = ranges[i][1])
-                    axs[j].axis('off')
-                    axs[j].plot(10, 10, 'x', ms=7, color='red')
-                pos = axs[0].imshow(predictions[i][0].reshape(20,20),
-                                    cmap = cm.PuBu,
-                                    vmin = ranges[i][0],
-                                    vmax = ranges[i][1])
-                fig.colorbar(pos, ax=axs, label="Cluster probability", orientation="horizontal", aspect=40)
-                plt.suptitle(all_samples[i][0], size='xx-large')
-                os.makedirs(seg_maps, exist_ok=True)
-                plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
-                plt.close()
-            if i == 0:
-                n_columns = len(all_samples[i][1]) // 2
-                fig, axs = plt.subplots(nrows=2, ncols=n_columns, figsize=(15, 5))
-                for k in range(2):
-                    for j in range(n_columns):
-                        axs[k, j].plot()
-                        subtitle = ("prob: " + "{:.4f}".format(all_samples[i][1].loc[j + n_columns * k, "prob"]) +
-                                "\nredshift: " + "{:.4f}".format(all_samples[i][1].loc[j + n_columns * k, "redshift"]) +
-                                "\nweight: " + "{:.4f}".format(all_samples[i][1].loc[j + n_columns * k, "M500c"]))
-                        axs[k, j].set_title(subtitle)
-                        axs[k, j].imshow(predictions[i][j + n_columns * k].reshape(20,20),
-                                      cmap = cm.PuBu,
-                                      vmin = ranges[i][0],
-                                      vmax = ranges[i][1])
-                        axs[k, j].axis('off')
-                        axs[k, j].plot(10, 10, 'x', ms=7, color='red')
-                pos = axs[1, 0].imshow(predictions[i][0].reshape(20,20),
-                                    cmap = cm.PuBu,
-                                    vmin = ranges[i][0],
-                                    vmax = ranges[i][1])
-                fig.colorbar(pos, ax=axs, label="Cluster probability", orientation="horizontal", aspect=40)
-                plt.suptitle(all_samples[i][0], size='xx-large')
-                fig.set_size_inches(18, 11, forward=True)
-                os.makedirs(seg_maps, exist_ok=True)
-                plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_{all_samples[i][0]}.png")
-                plt.close()
- 
-
-def bigSegMap_cluster(model, optimizer_name, device):
-    test_dr5, test_madcows = data.train_val_test_split()[2:4]
-    test_dr5_0, test_dr5_1 = test_dr5
-    test_madcows_0, test_madcows_1 = test_madcows
-
-    if (not os.path.exists(location) or
-        len(os.listdir(f'{madcows_sample_location}1')) == 0):
-        os.makedirs(data_out, exist_ok=True)
-        try:
-            wget.download(url=data_wget, out=data_out)
-            with ZipFile(f"{zipped_data_out}", 'r') as zObject:
-                zObject.extractall(path=f"{data_out}")
-            os.remove(f"{zipped_data_out}")
-        except:
-            data.ddos()
-        else:
-            if (not os.path.exists(location) or
-                    len(os.listdir(location)) == 0):
-                data.ddos()
-    test_dr5_1['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
-    test_madcows_1['prob'] = predict_folder(f'{madcows_sample_location}1', model, optimizer_name, device=device)
-    df = pd.concat([test_dr5_1, test_madcows_1], ignore_index=True)
-
-    cl0 = df.sample(1, random_state=1).reset_index(drop=True)
-    max_ra = cl0['RA'].max()
-    max_de = cl0['DEC'].max()
-    min_ra = cl0['RA'].min()
-    min_de = cl0['DEC'].min()
-    required_space = 30 / 120 #shift for big segmentation map / 2
-    while ((max_ra + required_space) > 360 or
-            (max_de + required_space) > 90 or
-            (min_de - required_space) < -90 or
-            (min_ra - required_space) < 0):
-        cl0 = df.sample(1).reset_index(drop=True)
-        max_ra = cl0['RA'].max()
-        max_de = cl0['DEC'].max()
-        min_ra = cl0['RA'].min()
-        min_de = cl0['DEC'].min()
-    os.makedirs(bigSegMapLocation, exist_ok=True)
-    cl0.to_csv(cl_bigSegMap_out, index=False)
+            
+            )
 
 
-def create_sample_big(model, optimizer_name, dire, device='cuda:0'):
-    if not os.path.exists(cl_bigSegMap_out):
-        bigSegMap_cluster(model, optimizer_name, device)
-    os.makedirs(dire, exist_ok=True)
-    if len(os.listdir(dire)) == 0:
-        cl0 = pd.read_csv(cl_bigSegMap_out)
-        createSegMap(1, cl0.loc[0, 'RA'], cl0.loc[0, 'DEC'], cl0.loc[0, 'Component_name'], dire=dire)
+# def bigSegMap_cluster(model, optimizer_name, device):
+#     test_dr5, test_madcows = data.train_val_test_split()[2:4]
+#     test_dr5_0, test_dr5_1 = test_dr5
+#     test_madcows_0, test_madcows_1 = test_madcows
+
+#     if (not os.path.exists(location) or
+#         len(os.listdir(f'{madcows_sample_location}1')) == 0):
+#         os.makedirs(data_out, exist_ok=True)
+#         try:
+#             wget.download(url=data_wget, out=data_out)
+#             with ZipFile(f"{zipped_data_out}", 'r') as zObject:
+#                 zObject.extractall(path=f"{data_out}")
+#             os.remove(f"{zipped_data_out}")
+#         except:
+#             data.ddos()
+#         else:
+#             if (not os.path.exists(location) or
+#                     len(os.listdir(location)) == 0):
+#                 data.ddos()
+#     test_dr5_1['prob'] = predict_folder(f'{dr5_sample_location}1', model, optimizer_name, device=device)
+#     test_madcows_1['prob'] = predict_folder(f'{madcows_sample_location}1', model, optimizer_name, device=device)
+#     df = pd.concat([test_dr5_1, test_madcows_1], ignore_index=True)
+
+#     cl0 = df.sample(1, random_state=1).reset_index(drop=True)
+#     max_ra = cl0['RA'].max()
+#     max_de = cl0['DEC'].max()
+#     min_ra = cl0['RA'].min()
+#     min_de = cl0['DEC'].min()
+#     required_space = 30 / 120 #shift for big segmentation map / 2
+#     while ((max_ra + required_space) > 360 or
+#             (max_de + required_space) > 90 or
+#             (min_de - required_space) < -90 or
+#             (min_ra - required_space) < 0):
+#         cl0 = df.sample(1).reset_index(drop=True)
+#         max_ra = cl0['RA'].max()
+#         max_de = cl0['DEC'].max()
+#         min_ra = cl0['RA'].min()
+#         min_de = cl0['DEC'].min()
+#     os.makedirs(bigSegMapLocation, exist_ok=True)
+#     cl0.to_csv(cl_bigSegMap_out, index=False)
 
 
-def saveBigSegMap(selected_models, optimizer_name):
-    '''
-    Creates a segmentation map in a 30x30 box with 1 minute step for a cluster randomly chosen from MaDCoWS or ACT_dr5 datasets
-    and saves it in segmentation_maps folder
-    '''
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    for model_name, model in selected_models:
-        create_sample_big(model, optimizer_name, dire=bigSegMap_pics, device=device)
-        cl0 = pd.read_csv(cl_bigSegMap_out)
-        prob_big = predict_folder(bigSegMap_pics, model, optimizer_name, device=device)
-        fig = plt.imshow(prob_big.reshape(30, 30), 
-                   cmap=cm.PuBu)
-        plt.title("{:.4f}".format(cl0.loc[0, "prob"]))
-        plt.axis('off')
-        plt.colorbar(fig, label="Cluster probability", orientation="horizontal", aspect=40)
-        os.makedirs(seg_maps, exist_ok=True)
-        plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_Big.png")
-        plt.close()
+# def create_sample_big(model, optimizer_name, dire, device='cuda:0'):
+#     if not os.path.exists(cl_bigSegMap_out):
+#         bigSegMap_cluster(model, optimizer_name, device)
+#     os.makedirs(dire, exist_ok=True)
+#     if len(os.listdir(dire)) == 0:
+#         cl0 = pd.read_csv(cl_bigSegMap_out)
+#         createSegMap(1, cl0.loc[0, 'RA'], cl0.loc[0, 'DEC'], cl0.loc[0, 'Component_name'], dire=dire)
+
+
+# def saveBigSegMap(selected_models, optimizer_name):
+#     '''
+#     Creates a segmentation map in a 30x30 box with 1 minute step for a cluster randomly chosen from MaDCoWS or ACT_dr5 datasets
+#     and saves it in segmentation_maps folder
+#     '''
+#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#     for model_name, model in selected_models:
+#         create_sample_big(model, optimizer_name, dire=bigSegMap_pics, device=device)
+#         cl0 = pd.read_csv(cl_bigSegMap_out)
+#         prob_big = predict_folder(bigSegMap_pics, model, optimizer_name, device=device)
+#         fig = plt.imshow(prob_big.reshape(30, 30), 
+#                    cmap=cm.PuBu)
+#         plt.title("{:.4f}".format(cl0.loc[0, "prob"]))
+#         plt.axis('off')
+#         plt.colorbar(fig, label="Cluster probability", orientation="horizontal", aspect=40)
+#         os.makedirs(seg_maps, exist_ok=True)
+#         plt.savefig(f"{working_path}{seg_maps}{model_name}_{optimizer_name}_Big.png")
+#         plt.close()

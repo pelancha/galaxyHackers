@@ -55,6 +55,7 @@ required_paths = [
     settings.BEST_MODELS_PATH,
     settings.SEGMENTATION_PATH,
     settings.SEGMENTATION_SAMPLES_PATH,
+    settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH,
     settings.SEGMENTATION_MAPS_PATH,
     settings.PREDICTIONS_PATH
 ]
