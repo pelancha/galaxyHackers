@@ -379,7 +379,7 @@ def train_val_test_split():
     test_dr5.index.name = "idx"
 
 
-    gaia = read_gaia()
+    gaia = create_data_gaia()
 
 
     pairs = [

@@ -241,10 +241,16 @@ def create_segmentation_plot(
 
     fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 5))
 
+    
     for i, (idx, dataloader) in enumerate(dataloaders):
 
-        cur_row = i // n_cols
         cur_col = i % n_cols
+
+        if n_rows > 1:
+            cur_row = i // n_cols
+            cur_position = (cur_row, cur_col)
+        else:
+            cur_position = cur_col
 
         predictions = predictor.predict(dataloader)
 
@@ -252,16 +258,16 @@ def create_segmentation_plot(
 
         predictions.to_csv(path)
 
-        axes[cur_row, cur_col].plot()
+        axes[cur_position].plot()
         # subtitle = "prob: " + "{:.4f}".format(start_probability)
         # axs[idx].set_title(subtitle)
 
-        im = axes[cur_row, cur_col].imshow(predictions["y_prob"].values.reshape(20,20).astype(float),
+        im = axes[cur_position].imshow(predictions["y_prob"].values.reshape(20,20).astype(float),
                         cmap = cm.PuBu,
                         vmin = 0,
                         vmax = 1)
-        axes[cur_row, cur_col].axis('off')
-        axes[cur_row, cur_col].plot(10, 10, 'x', ms=7, color='red')
+        axes[cur_position].axis('off')
+        axes[cur_position].plot(10, 10, 'x', ms=7, color='red')
 
     fig.colorbar(im, ax=axes.ravel().tolist(), label="Cluster probability", orientation="horizontal", aspect=40)
     # plt.suptitle(all_samples[i][0], size='xx-large')
