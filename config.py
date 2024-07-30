@@ -21,6 +21,7 @@ settings.DR5_CLUSTERS_PATH = Path(settings.DATA_PATH, settings.DR5_CLUSTERS_FILE
 settings.SEGMENTATION_PATH = Path(settings.STORAGE_PATH, "segmentation/")
 settings.SEGMENTATION_SAMPLES_PATH = Path(settings.SEGMENTATION_PATH, "samples/")
 settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH = Path(settings.SEGMENTATION_SAMPLES_PATH, "description/")
+settings.SEGMENTATION_MAPS_PATH = Path(settings.SEGMENTATION_PATH, "maps/")
 
 
 settings.MAP_ACT_CONFIG = {
@@ -54,6 +55,7 @@ required_paths = [
     settings.BEST_MODELS_PATH,
     settings.SEGMENTATION_PATH,
     settings.SEGMENTATION_SAMPLES_PATH,
+    settings.SEGMENTATION_MAPS_PATH,
     settings.PREDICTIONS_PATH
 ]
 

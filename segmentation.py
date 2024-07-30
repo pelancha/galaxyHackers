@@ -111,27 +111,8 @@ def create_sample(sample_name):
     return sample
 
 
-
-
-def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_type: MapType):
-
-    dataloaders = []
-    
-    for idx, row in data.iterrows():
-
-        directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx)
-
-        dataloader = create_map_dataloader(map_type=map_type, idx=idx, ra_start=row['ra_deg'], dec_start=row['dec_deg'], dir=directory)
-
-        dataloaders.append( idx, dataloader)
-
-
-    return dataloaders
-
-
 def create_map_dataloader(
         map_type: MapType, 
-        idx_start: int,
         ra_start: float, 
         dec_start: float,
         map_dir: Path): #id: 0 for small segmentation maps, 1 - for a big one
@@ -219,25 +200,40 @@ def create_map_dataloader(
     dataloader = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
 
     return dataloader
-
-
-
-def create_segmentation_maps(model, optimizer_name, map_type: MapType=MapType.SMALL):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    load_model(model, optimizer_name, device)
-
-    predictor = Predictor(model)
-
-    for sample_name in list(SampleName):
-        create_segmentation_map(map_type=map_type, predictor=predictor, sample_name=sample_name)
        
 
-def create_segmentation_map(map_type: MapType, predictor: Predictor, sample_name: SampleName):
+def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_type: MapType):
+
+    dataloaders = []
+    
+    for idx, row in data.iterrows():
+
+        directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, idx)
+
+        dataloader = create_map_dataloader(map_type=map_type, idx=idx, ra_start=row['ra_deg'], dec_start=row['dec_deg'], dir=directory)
+
+        dataloaders.append( idx, dataloader)
+
+
+    return dataloaders 
+    
+
+def create_segmentation_plot(
+        map_type: MapType, 
+        model_name: str, 
+        optimizer_name: str,
+        predictor: Predictor, 
+        sample_name: SampleName,
+        n_cols = 5
+        ):
     
     sample = create_sample(sample_name)
 
     dataloaders = prepare_sample_dataloaders(data=sample, sample_name=sample_name, map_type=map_type)
+
+    n_rows = (len(sample) + 1) // n_cols
+
+    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 5))
 
     for idx, dataloader in dataloaders:
 
@@ -247,6 +243,32 @@ def create_segmentation_map(map_type: MapType, predictor: Predictor, sample_name
 
         predictions.to_csv(path)
 
+        axes[idx].plot()
+        # subtitle = "prob: " + "{:.4f}".format(start_probability)
+        # axs[idx].set_title(subtitle)
+        im = axes[idx].imshow(predictions["y_prob"].values.reshape(20,20),
+                        cmap = cm.PuBu,
+                        vmin = 0,
+                        vmax = 1)
+        axes[idx].axis('off')
+        axes[idx].plot(10, 10, 'x', ms=7, color='red')
+
+    fig.colorbar(im, ax=axes.ravel().tolist(), label="Cluster probability", orientation="horizontal", aspect=40)
+    # plt.suptitle(all_samples[i][0], size='xx-large')
+
+    plt.savefig(Path(settings.SEGMENTATION_MAPS_PATH, f"{map_type}_{model_name}_{optimizer_name}_{sample_name.value}.png"))
+    plt.close()
+        
+
+def create_segmentation_plots(model, optimizer_name, map_type: MapType=MapType.SMALL):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    load_model(model, optimizer_name, device)
+
+    predictor = Predictor(model)
+
+    for sample_name in list(SampleName):
+        create_segmentation_plot(map_type=map_type, predictor=predictor, sample_name=sample_name)
 
 def saveSegMaps(selected_models, optimizer_name):
     '''
