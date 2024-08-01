@@ -408,7 +408,9 @@ def ddos():
     for part, description in pairs.items():
 
         description_file_path = os.path.join(description_path, f"{part.value}.csv")
-        description.to_csv(description_file_path, index=True)
+
+        if not os.path.exists(description_file_path):
+            description.to_csv(description_file_path, index=True)
 
         path = os.path.join(settings.DATA_PATH, part.value)
         legacy_for_img.grab_cutouts(

@@ -125,7 +125,9 @@ def create_sample(sample_name, predictor: Predictor):
         min_dec = sample['dec_deg'].min()
 
     sample_description_path = Path(settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH, f"{sample_name.value}.csv", index=True)
-    sample.to_csv(sample_description_path)
+
+    if not os.path.exists(sample_description_path):
+        sample.to_csv(sample_description_path)
 
     dataset = ClusterDataset(
         images_dir_path= Path(settings.DATA_PATH, source.value),
@@ -206,7 +208,8 @@ def create_map_dataloader(
     description_path = Path(map_dir, f"description.csv")
 
     map_data = pd.DataFrame({'name': name, 'ra_deg': ras, 'dec_deg': decs}, index=pd.Index(idxs, name="idx"))
-    map_data.to_csv(description_path)
+    if not os.path.exists(description_path):
+        map_data.to_csv(description_path)
 
     legacy_for_img.grab_cutouts(
         target_file=map_data, 
@@ -293,7 +296,6 @@ def create_segmentation_plot(
         predictions = predictor.predict(dataloader)
 
         path = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, str(idx), "predictions.csv")
-
         predictions.to_csv(path)
 
         cur_ax.plot()
