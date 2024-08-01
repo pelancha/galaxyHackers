@@ -33,6 +33,11 @@ np.random.seed(settings.SEED)
 TORCHVISION_MEAN = torch.Tensor([0.485, 0.456, 0.406])
 TORCHVISION_STD = torch.Tensor([0.229, 0.224, 0.225])
 
+main_transforms = [
+    transforms.ToTensor(),
+    transforms.Resize((224, 224)),
+    transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
+]
 
 class DataPart(str, Enum):
     TRAIN = "train"
@@ -43,14 +48,16 @@ class DataPart(str, Enum):
 
 
 class ClusterDataset(Dataset):
-    def __init__(self, images_dir_path: str, description_csv_path: str, transform=None):
+    def __init__(self, images_dir_path: str, description_csv_path: str, transform: list | None = None):
         super().__init__()
+
+        if transform is None:
+            transform = transforms.Compose(main_transforms)
 
         self.images_dir_path = images_dir_path
         self.description_df = pd.read_csv(
             description_csv_path, dtype={"idx": str, "target": int}
-        ).head(400)
-
+        )
 
         self.transform = transform
 
@@ -349,8 +356,7 @@ def create_data_gaia():
     clusters = read_gaia()
 
     clusters["target"] = 0
-    data_gaia = clusters.reset_index(drop=True)
-    data_gaia.index.name = "idx"
+    clusters.index.name = "idx"
 
     return clusters
 
@@ -429,11 +435,7 @@ def show_original(img):
     plt.imshow(np.transpose(denormalized_img, (1, 2, 0)))
 
 
-main_transforms = [
-    transforms.ToTensor(),
-    transforms.Resize((224, 224)),
-    transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
-]
+
 
 def check_catalogs():
 
@@ -449,25 +451,24 @@ def create_dataloaders():
 
     ddos()
 
-    data_transforms = {
-        DataPart.TRAIN: transforms.Compose(
-            [
-                *main_transforms,
-                transforms.RandomRotation(
-                    15,
-                ),
-                transforms.RandomHorizontalFlip(),
-            ]
-        ),
-        DataPart.VALIDATE: transforms.Compose(main_transforms),
-        DataPart.TEST_DR5: transforms.Compose(main_transforms),
-        DataPart.TEST_MC: transforms.Compose(main_transforms),
-        DataPart.GAIA: transforms.Compose(main_transforms),
-    }
+    from collections import defaultdict
+
+    data_transforms = defaultdict(lambda: transforms.Compose(main_transforms))
+
+    data_transforms[DataPart.TRAIN] = transforms.Compose(
+                                            [
+                                                *main_transforms,
+                                                transforms.RandomRotation(
+                                                    15,
+                                                ),
+                                                transforms.RandomHorizontalFlip(),
+                                            ]
+                                        )
+   
 
     custom_datasets = {}
     dataloaders = {}
-    for part in list(DataPart):
+    for part in list(DataPart): 
 
         dataset = ClusterDataset(
             os.path.join(settings.DATA_PATH, part.value),
