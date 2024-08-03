@@ -139,8 +139,8 @@ class Trainer:
             test_accs.append(acc)
 
             y_probs.extend(logits[:, 1].data.cpu().numpy().ravel())
-            y_pred.extend(outputs)
-            y_true.extend(labels)
+            y_pred.extend(outputs.data.cpu().numpy().ravel())
+            y_true.extend(labels.data.cpu().numpy().ravel())
 
         return y_pred, y_probs, y_true, test_losses, test_accs
 
@@ -199,7 +199,7 @@ class Predictor():
 
             logits, outputs, idxs = self.compute_all(batch)
 
-            y_pred.extend(outputs)
+            y_pred.extend(outputs.data.cpu().numpy().ravel())
             y_prob.extend(logits[:, 1].data.cpu().numpy().ravel())
             y_names.extend(idxs)
 
