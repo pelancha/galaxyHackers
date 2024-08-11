@@ -49,16 +49,16 @@ class SpinalNet_VGG(nn.Module):
 def load_model(num_class=2):
     model_ft = models.vgg19_bn(weights=models.VGG19_BN_Weights.DEFAULT)
 
-    # pretrained_weights = model_ft.features[0].weight.clone()
+    pretrained_weights = model_ft.features[0].weight.clone()
 
-    # new_features = nn.Sequential(*list(model_ft.features.children()))
-    # new_features[0] = nn.Conv2d(2, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    new_features = nn.Sequential(*list(model_ft.features.children()))
+    new_features[0] = nn.Conv2d(2, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
 
-    # # Inserting pretrained weights from first 2 channels into new layer
-    # with torch.no_grad():
-    #     new_features[0].weight.data = nn.Parameter(pretrained_weights[:, :2])
+    # Inserting pretrained weights from first 2 channels into new layer
+    with torch.no_grad():
+        new_features[0].weight.data = nn.Parameter(pretrained_weights[:, :2])
 
-    # model_ft.features = new_features
+    model_ft.features = new_features
 
     num_ftrs = model_ft.classifier[0].in_features
     half_in_size = round(num_ftrs/2)
