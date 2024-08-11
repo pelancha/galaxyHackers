@@ -32,7 +32,7 @@ settings.MAP_ACT_CONFIG = {
     "URL": "http://oshi.at/JTuj",
     "ZIPPED_OUTPUT_PATH": Path(settings.DATA_PATH, "ACT.zip"),
     "FALLBACK_URL" : urllib.parse.urljoin(settings.ARCHIVE_DR5_URL, 'maps/', settings.MAP_ACT_ROUTE),
-    "OUTPUT_PATH": settings.MAP_ACT_PATH
+    "OUTPUT_PATH": str(settings.MAP_ACT_PATH)
 }
 
 settings.DR5_CONFIG = {
@@ -43,7 +43,7 @@ settings.DR5_CONFIG = {
     "URL": "http://oshi.at/ysSg",
     "ZIPPED_OUTPUT_PATH": Path(settings.DATA_PATH, "dr5.zip"),
     "FALLBACK_URL" : urllib.parse.urljoin(settings.ARCHIVE_DR5_URL, settings.DR5_CLUSTERS_ROUTE),
-    "OUTPUT_PATH": settings.DR5_CLUSTERS_PATH 
+    "OUTPUT_PATH": str(settings.DR5_CLUSTERS_PATH) 
 }
 
 

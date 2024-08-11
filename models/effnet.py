@@ -38,6 +38,18 @@ class SpinalNet_EfficientNet(nn.Module):
 
 def load_model(num_class=2):
     model = timm.create_model('efficientnet_b0', pretrained=True)
+
+    # Cloning pretrained weights of old layer
+    weight = model.conv_stem.weight.clone()
+
+    # Defining new layer
+    model.conv_stem = nn.Conv2d(2, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+
+    # Inserting pretrained weights from first 2 channels into new layer
+    with torch.no_grad():
+        model.conv_stem.weight = nn.Parameter(weight[:, :2])
+
+
     num_ftrs = model.classifier.in_features
     half_in_size = round(num_ftrs / 2)
     layer_width = 200

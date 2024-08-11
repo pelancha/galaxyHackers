@@ -37,7 +37,20 @@ class SpinalNet_DenseNet(nn.Module):
         return x
 
 def load_model(num_class=2):
+
     model = timm.create_model('densenet121', pretrained=True)
+
+    pretrained_weights = model.features[0].weight.clone()
+
+    new_features = nn.Sequential(*list(model.features.children()))
+    new_features[0] = nn.Conv2d(2, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
+    # Inserting pretrained weights from first 2 channels into new layer
+    with torch.no_grad():
+        new_features[0].weight.data = nn.Parameter(pretrained_weights[:, :2])
+
+    model.features = new_features
+
     num_ftrs = model.classifier.in_features
     half_in_size = round(num_ftrs / 2)
     layer_width = 200

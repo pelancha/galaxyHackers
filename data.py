@@ -7,6 +7,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from zipfile import ZipFile
+from tqdm import tqdm
 
 import astropy.coordinates as coord
 import astropy.table as atpy
@@ -24,6 +25,9 @@ from pixell import enmap
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 
+from astropy.io import fits
+
+
 import legacy_for_img
 from config import settings
 
@@ -33,11 +37,11 @@ np.random.seed(settings.SEED)
 TORCHVISION_MEAN = torch.Tensor([0.485, 0.456, 0.406])
 TORCHVISION_STD = torch.Tensor([0.229, 0.224, 0.225])
 
-main_transforms = [
-    transforms.ToTensor(),
-    transforms.Resize((224, 224)),
-    transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
-]
+# main_transforms = [
+#     transforms.ToTensor(),
+#     transforms.Resize((224, 224)),
+#     transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
+# ]
 
 class DataPart(str, Enum):
     TRAIN = "train"
@@ -48,11 +52,8 @@ class DataPart(str, Enum):
 
 
 class ClusterDataset(Dataset):
-    def __init__(self, images_dir_path: str, description_csv_path: str, transform: list | None = None):
+    def __init__(self, images_dir_path: str, description_csv_path: str, transform = None):
         super().__init__()
-
-        if transform is None:
-            transform = transforms.Compose(main_transforms)
 
         self.images_dir_path = images_dir_path
         self.description_df = pd.read_csv(
@@ -70,7 +71,7 @@ class ClusterDataset(Dataset):
 
         img_name= row["idx"]
 
-        img_path = Path(self.images_dir_path, f"{img_name}.jpg")
+        img_path = Path(self.images_dir_path, f"{img_name}.fits")
         img = self._read_img(img_path)
 
         if self.transform:
@@ -85,10 +86,11 @@ class ClusterDataset(Dataset):
         return sample
 
     @staticmethod
-    def _read_img(img_path: Path):
-        img = Image.open(str(img_path.resolve()))
-        return img
+    def _read_img(fits_path: Path):
+        with fits.open(fits_path) as hdul:
+            img = torch.Tensor(hdul[0].data.astype(np.float64))
 
+        return img
 
 
 def bar_progress(current, total, width=80):
@@ -420,8 +422,7 @@ def ddos():
             dec_col="dec_deg",
             output_dir=path,
             survey="unwise-neo7",
-            imgsize_pix=224,
-            file_format="jpg",
+            imgsize_pix=224
         )
 
 
@@ -455,37 +456,37 @@ def create_dataloaders():
 
     from collections import defaultdict
 
-    data_transforms = defaultdict(lambda: transforms.Compose(main_transforms))
+    # data_transforms = defaultdict(lambda: transforms.Compose(main_transforms))
 
-    data_transforms[DataPart.TRAIN] = transforms.Compose(
-                                            [
-                                                *main_transforms,
-                                                transforms.RandomRotation(
-                                                    15,
-                                                ),
-                                                transforms.RandomHorizontalFlip(),
-                                            ]
-                                        )
+    # data_transforms[DataPart.TRAIN] = transforms.Compose(
+    #                                         [
+    #                                             *main_transforms,
+    #                                             transforms.RandomRotation(
+    #                                                 15,
+    #                                             ),
+    #                                             transforms.RandomHorizontalFlip(),
+    #                                         ]
+    #                                     )
    
 
     custom_datasets = {}
     dataloaders = {}
     for part in list(DataPart): 
 
-        dataset = ClusterDataset(
+        cluster_dataset = ClusterDataset(
             os.path.join(settings.DATA_PATH, part.value),
-            os.path.join(settings.DESCRIPTION_PATH, f"{part.value}.csv"),
-            transform=data_transforms[part],
+            os.path.join(settings.DESCRIPTION_PATH, f"{part.value}.csv")
         )
 
-        custom_datasets[part] = dataset
-        dataloaders[part] = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
+        custom_datasets[part] = cluster_dataset
+        dataloaders[part] = DataLoader(cluster_dataset, batch_size=settings.BATCH_SIZE)
 
-    # Get a batch of training data
-    batch = next(iter(dataloaders[DataPart.TRAIN]))
+    # ? Not working for non-image data
+    # # Get a batch of training data
+    # batch = next(iter(dataloaders[DataPart.TRAIN]))
 
-    # Make a grid from batch
-    out = utils.make_grid(batch["image"])
-    show_original(out)
+    # # Make a grid from batch
+    # out = utils.make_grid(batch["image"])
+    # show_original(out)
 
     return custom_datasets, dataloaders

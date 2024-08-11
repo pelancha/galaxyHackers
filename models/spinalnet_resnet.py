@@ -41,6 +41,19 @@ class SpinalNet_ResNet(nn.Module):
 
 def load_model(num_class=2):
     model_ft = models.wide_resnet101_2(weights=models.Wide_ResNet101_2_Weights.DEFAULT)
+
+
+    # Cloning pretrained weights of old layer
+    weight = model_ft.conv1.weight.clone()
+
+    # Defining new layer
+    model_ft.conv1 = nn.Conv2d(2, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
+    # Inserting pretrained weights from first 2 channels into new layer
+    with torch.no_grad():
+        model_ft.conv1.weight = nn.Parameter(weight[:, :2])
+
+
     num_ftrs = model_ft.fc.in_features
 
     half_in_size = round(num_ftrs/2)
