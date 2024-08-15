@@ -141,6 +141,12 @@ def create_sample(sample_name, predictor: Predictor):
     return sample, sample_predictions, map_type
 
 
+def grab_surrounding(points_on_radius): # step не всегда = 1; поэтому просто radius подавать нельзя
+    for x in range(-points_on_radius, points_on_radius + 1):
+        for y in range(-points_on_radius, points_on_radius + 1):
+            yield (x, y)
+
+
 def create_map_dataloader(
         map_type: MapType, 
         ra_start: float, 
@@ -152,70 +158,35 @@ def create_map_dataloader(
 
     match map_type:
         case MapType.SMALL:
-            step = 0.5 / 60 #шаг в 0.5 минуту, выражено в градусах
             radius = 5 #10 минут - длина квадрата
-            cycle_step = 0.5
+            cycle_step = 0.5 #шаг в 0.5 минуту
+            step = cycle_step / 60 #шаг в 0.5 минуту, выражено в градусах
         case MapType.BIG:
-            step = 1 / 60 #шаг в 1 минуту, выражено в градусах
             radius = 15 #30 минут - длина квадрата
-            cycle_step = 1
+            cycle_step = 1 #шаг в 1 минуту
+            step = cycle_step / 60 #шаг в 1 минуту, выражено в градусах
 
     idxs = []
     cur_idx = 0
 
-    # centre of the segmentation map
-    ra_centre, dec_centre = ra_start, dec_start
+    # cluster in centre (0, 0) and its surrounding
+    surrounding = grab_surrounding(int(radius / cycle_step))
+    for x, y in surrounding:
+        ra_current = ra_start + step * x
+        dec_current = dec_start + step * y
 
-    coords = coord.SkyCoord(ra=ra_centre*u.degree, dec=dec_centre*u.degree, frame='icrs')
+        coords = coord.SkyCoord(ra=ra_current*u.degree, dec=dec_current*u.degree, frame='icrs')
 
-    ras.append(coords.ra.degree)
-    decs.append(coords.dec.degree)
-    idxs.append(cur_idx)
+        ras.append(coords.ra.degree)
+        decs.append(coords.dec.degree)
+        idxs.append(cur_idx)
 
-    cur_idx += 1
+        cur_idx += 1
 
-    b = coords.galactic.b.degree
-    l = coords.galactic.l.degree
+        b = coords.galactic.b.degree
+        l = coords.galactic.l.degree
 
-    name.append(f'Map {l:.3f}{b:+.3f}')
-
-    # surrounding
-    ra_current = ra_centre + step
-    dec_current = dec_centre
-    shift = cycle_step # shows current distance from the centre of the pic
-    one_way = 2 # shows number of coords that should be taken in one row on the certain distance from centre for segmentation map
-
-    while shift <= radius:
-        for i in range(5):
-            direction = 1 if i % 2 == 0 else -(-1)**(i // 2)
-            steps = one_way // 2 if i % 4 == 0 else one_way
-
-            for _ in range(steps):
-                if i % 2 == 0:
-                    dec_current += direction * step
-                    if not (-90 <= dec_current <= 90):
-                        break
-                else:
-                    ra_current += direction * step
-                    if not (0 <= ra_current <= 360):
-                        break
-                
-                coords = coord.SkyCoord(ra=ra_centre*u.degree, dec=dec_centre*u.degree, frame='icrs')
-
-                ras.append(coords.ra.degree)
-                decs.append(coords.dec.degree)
-                idxs.append(cur_idx)
-
-                cur_idx += 1
-
-                b = coords.galactic.b.degree
-                l = coords.galactic.l.degree
-
-                name.append(f'Map {l:.3f}{b:+.3f}')
-
-        ra_current += step
-        one_way += 2
-        shift += cycle_step
+        name.append(f'Map {l:.3f}{b:+.3f}')
 
     description_path = Path(map_dir, f"description.csv")
 
