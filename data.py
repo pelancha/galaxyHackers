@@ -34,14 +34,14 @@ from config import settings
 
 np.random.seed(settings.SEED)
 
-TORCHVISION_MEAN = torch.Tensor([0.485, 0.456, 0.406])
-TORCHVISION_STD = torch.Tensor([0.229, 0.224, 0.225])
+# заглушка 
+TORCHVISION_MEAN = [0.485, 0.456]
+TORCHVISION_STD = [0.229, 0.224]
 
-# main_transforms = [
-#     transforms.ToTensor(),
-#     transforms.Resize((224, 224)),
-#     transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
-# ]
+main_transforms = [
+    transforms.Resize((224, 224)),
+    transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
+]
 
 class DataPart(str, Enum):
     TRAIN = "train"

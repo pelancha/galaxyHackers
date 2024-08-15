@@ -77,8 +77,8 @@ class MapType(str, Enum):
 
 
 plot_sizes = {
-    MapType.SMALL: 20,
-    MapType.BIG: 30,
+    MapType.SMALL: 21,
+    MapType.BIG: 31,
 }
 
 # Map type, Data part and target class for each sample
@@ -109,9 +109,9 @@ def create_sample(sample_name, predictor: Predictor):
 
     match (map_type):
         case MapType.SMALL:
-            required_space = 10 / 120 #shift for small segmentation maps / 2
+            required_space = 10 / 120 #radius required around clusters for segmentation maps (in minutes)
         case MapType.BIG:
-            required_space = 30 / 120 #shift for big segmentation map / 2
+            required_space = 30 / 120 #radius required around cluster (in minutes)
             
     while ((max_ra + required_space) > 360 or
             (max_dec + required_space) > 90 or
@@ -153,57 +153,69 @@ def create_map_dataloader(
     match map_type:
         case MapType.SMALL:
             step = 0.5 / 60 #шаг в 0.5 минуту, выражено в градусах
-            #10 минут - максимальное расстояние подряд в одну сторону, 0.5 минута - один шаг, всё *10
-            distance = 10
-            cycle_step = 5
+            radius = 5 #10 минут - длина квадрата
+            cycle_step = 0.5
         case MapType.BIG:
             step = 1 / 60 #шаг в 1 минуту, выражено в градусах
-            #30 минут - максимальное расстояние подряд в одну сторону, 1 минута - один шаг
-            distance = 30
+            radius = 15 #30 минут - длина квадрата
             cycle_step = 1
-
-    shift = distance / 2 #подаётся центр карты сегментации, переводим начало в левый верхний угол
-
-    ra_corner = ra_start - shift
-    dec_corner = dec_start + shift
-
-    #масштаб в case 0
-    if map_type == MapType.SMALL:
-        distance *= 10
-
-
-    dec_current = dec_corner
 
     idxs = []
     cur_idx = 0
-    #ra шагаем вправо, dec шагаем вниз
-    for _ in range(0, distance, cycle_step):
-        ra_current = ra_corner
 
-        for _ in range(0, distance, cycle_step):
-            coords = coord.SkyCoord(ra=ra_current*u.degree, dec=dec_current*u.degree, frame='icrs')
+    # centre of the segmentation map
+    ra_centre, dec_centre = ra_start, dec_start
 
-            ras.append(coords.ra.degree)
-            decs.append(coords.dec.degree)
-            idxs.append(cur_idx)
+    coords = coord.SkyCoord(ra=ra_centre*u.degree, dec=dec_centre*u.degree, frame='icrs')
 
-            cur_idx += 1
+    ras.append(coords.ra.degree)
+    decs.append(coords.dec.degree)
+    idxs.append(cur_idx)
 
+    cur_idx += 1
 
-            b = coords.galactic.b.degree
-            l = coords.galactic.l.degree
+    b = coords.galactic.b.degree
+    l = coords.galactic.l.degree
 
-            name.append(f'Map {l:.3f}{b:+.3f}')
+    name.append(f'Map {l:.3f}{b:+.3f}')
 
-            ra_current += step
+    # surrounding
+    ra_current = ra_centre + step
+    dec_current = dec_centre
+    shift = cycle_step # shows current distance from the centre of the pic
+    one_way = 2 # shows number of coords that should be taken in one row on the certain distance from centre for segmentation map
 
-            if (0 > ra_current or ra_current > 360):
-              break
+    while shift <= radius:
+        for i in range(5):
+            direction = 1 if i % 2 == 0 else -(-1)**(i // 2)
+            steps = one_way // 2 if i % 4 == 0 else one_way
 
-        dec_current -= step
+            for _ in range(steps):
+                if i % 2 == 0:
+                    dec_current += direction * step
+                    if not (-90 <= dec_current <= 90):
+                        break
+                else:
+                    ra_current += direction * step
+                    if not (0 <= ra_current <= 360):
+                        break
+                
+                coords = coord.SkyCoord(ra=ra_centre*u.degree, dec=dec_centre*u.degree, frame='icrs')
 
-        if (-90 > dec_current or dec_current > 90):
-          break
+                ras.append(coords.ra.degree)
+                decs.append(coords.dec.degree)
+                idxs.append(cur_idx)
+
+                cur_idx += 1
+
+                b = coords.galactic.b.degree
+                l = coords.galactic.l.degree
+
+                name.append(f'Map {l:.3f}{b:+.3f}')
+
+        ra_current += step
+        one_way += 2
+        shift += cycle_step
 
     description_path = Path(map_dir, f"description.csv")
 
@@ -218,8 +230,7 @@ def create_map_dataloader(
         dec_col="dec_deg",
         output_dir=map_dir,         
         survey='unwise-neo7', 
-        imgsize_pix = 224, 
-        file_format='jpg' )
+        imgsize_pix = 224 )
     
 
     dataset = ClusterDataset(
