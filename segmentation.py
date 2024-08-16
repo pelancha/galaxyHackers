@@ -76,9 +76,9 @@ class MapType(str, Enum):
     BIG = 1
 
 
-plot_sizes = {
-    MapType.SMALL: 21,
-    MapType.BIG: 31,
+plot_radius = {
+    MapType.SMALL: 2,
+    MapType.BIG: 4,
 }
 
 # Map type, Data part and target class for each sample
@@ -158,20 +158,17 @@ def create_map_dataloader(
 
     match map_type:
         case MapType.SMALL:
-            radius = 5 #10 минут - длина квадрата
             cycle_step = 0.5 #шаг в 0.5 минуту
             step = cycle_step / 60 #шаг в 0.5 минуту, выражено в градусах
         case MapType.BIG:
-            radius = 15 #30 минут - длина квадрата
             cycle_step = 1 #шаг в 1 минуту
             step = cycle_step / 60 #шаг в 1 минуту, выражено в градусах
 
     idxs = []
-    cur_idx = 0
 
     # cluster in centre (0, 0) and its surrounding
-    surrounding = grab_surrounding(int(radius / cycle_step))
-    for x, y in surrounding:
+    surrounding = grab_surrounding(plot_radius[map_type])
+    for i, (x, y) in enumerate(surrounding):
         ra_current = ra_start + step * x
         dec_current = dec_start + step * y
 
@@ -179,9 +176,7 @@ def create_map_dataloader(
 
         ras.append(coords.ra.degree)
         decs.append(coords.dec.degree)
-        idxs.append(cur_idx)
-
-        cur_idx += 1
+        idxs.append(i)
 
         b = coords.galactic.b.degree
         l = coords.galactic.l.degree
@@ -191,6 +186,7 @@ def create_map_dataloader(
     description_path = Path(map_dir, f"description.csv")
 
     map_data = pd.DataFrame({'name': name, 'ra_deg': ras, 'dec_deg': decs}, index=pd.Index(idxs, name="idx"))
+
     if not os.path.exists(description_path):
         map_data.to_csv(description_path)
 
@@ -260,8 +256,6 @@ def create_segmentation_plot(
     
     for i, (idx, dataloader) in enumerate(dataloaders):
 
-       
-
         cur_col = i % n_cols
 
         if n_rows > 1:
@@ -284,7 +278,7 @@ def create_segmentation_plot(
         subtitle = "Probability: " + "{:.4f}".format(float(sample_predictions.loc[str(idx), "y_prob"]))
         cur_ax.set_title(subtitle)
 
-        plot_size = plot_sizes[map_type]
+        plot_size = plot_radius[map_type] * 2 + 1
         center = int(plot_size//2)
 
         im = cur_ax.imshow(predictions["y_prob"].values.reshape(plot_size,plot_size).astype(float),
