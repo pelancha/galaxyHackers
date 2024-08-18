@@ -76,9 +76,9 @@ class MapType(str, Enum):
     BIG = 1
 
 
-plot_sizes = {
-    MapType.SMALL: 20,
-    MapType.BIG: 30,
+plot_radius = {
+    MapType.SMALL: 10,
+    MapType.BIG: 15,
 }
 
 # Map type, Data part and target class for each sample
@@ -109,9 +109,9 @@ def create_sample(sample_name, predictor: Predictor):
 
     match (map_type):
         case MapType.SMALL:
-            required_space = 10 / 120 #shift for small segmentation maps / 2
+            required_space = 10 / 120 #radius required around clusters for segmentation maps (in minutes)
         case MapType.BIG:
-            required_space = 30 / 120 #shift for big segmentation map / 2
+            required_space = 30 / 120 #radius required around cluster (in minutes)
             
     while ((max_ra + required_space) > 360 or
             (max_dec + required_space) > 90 or
@@ -141,6 +141,12 @@ def create_sample(sample_name, predictor: Predictor):
     return sample, sample_predictions, map_type
 
 
+def grab_surrounding(points_on_radius): # step не всегда = 1; поэтому просто radius подавать нельзя
+    for x in range(-points_on_radius, points_on_radius + 1):
+        for y in range(-points_on_radius, points_on_radius + 1):
+            yield (x, y)
+
+
 def create_map_dataloader(
         map_type: MapType, 
         ra_start: float, 
@@ -152,62 +158,35 @@ def create_map_dataloader(
 
     match map_type:
         case MapType.SMALL:
-            step = 0.5 / 60 #шаг в 0.5 минуту, выражено в градусах
-            #10 минут - максимальное расстояние подряд в одну сторону, 0.5 минута - один шаг, всё *10
-            distance = 10
-            cycle_step = 5
+            cycle_step = 0.5 #шаг в 0.5 минуту
+            step = cycle_step / 60 #шаг в 0.5 минуту, выражено в градусах
         case MapType.BIG:
-            step = 1 / 60 #шаг в 1 минуту, выражено в градусах
-            #30 минут - максимальное расстояние подряд в одну сторону, 1 минута - один шаг
-            distance = 30
-            cycle_step = 1
-
-    shift = distance / 2 #подаётся центр карты сегментации, переводим начало в левый верхний угол
-
-    ra_corner = ra_start - shift
-    dec_corner = dec_start + shift
-
-    #масштаб в case 0
-    if map_type == MapType.SMALL:
-        distance *= 10
-
-
-    dec_current = dec_corner
+            cycle_step = 1 #шаг в 1 минуту
+            step = cycle_step / 60 #шаг в 1 минуту, выражено в градусах
 
     idxs = []
-    cur_idx = 0
-    #ra шагаем вправо, dec шагаем вниз
-    for _ in range(0, distance, cycle_step):
-        ra_current = ra_corner
 
-        for _ in range(0, distance, cycle_step):
-            coords = coord.SkyCoord(ra=ra_current*u.degree, dec=dec_current*u.degree, frame='icrs')
+    # cluster in centre (0, 0) and its surrounding
+    surrounding = grab_surrounding(plot_radius[map_type])
+    for i, (x, y) in enumerate(surrounding):
+        ra_current = ra_start + step * x
+        dec_current = dec_start + step * y
 
-            ras.append(coords.ra.degree)
-            decs.append(coords.dec.degree)
-            idxs.append(cur_idx)
+        coords = coord.SkyCoord(ra=ra_current*u.degree, dec=dec_current*u.degree, frame='icrs')
 
-            cur_idx += 1
+        ras.append(coords.ra.degree)
+        decs.append(coords.dec.degree)
+        idxs.append(i)
 
+        b = coords.galactic.b.degree
+        l = coords.galactic.l.degree
 
-            b = coords.galactic.b.degree
-            l = coords.galactic.l.degree
-
-            name.append(f'Map {l:.3f}{b:+.3f}')
-
-            ra_current += step
-
-            if (0 > ra_current or ra_current > 360):
-              break
-
-        dec_current -= step
-
-        if (-90 > dec_current or dec_current > 90):
-          break
+        name.append(f'Map {l:.3f}{b:+.3f}')
 
     description_path = Path(map_dir, f"description.csv")
 
     map_data = pd.DataFrame({'name': name, 'ra_deg': ras, 'dec_deg': decs}, index=pd.Index(idxs, name="idx"))
+
     if not os.path.exists(description_path):
         map_data.to_csv(description_path)
 
@@ -218,14 +197,12 @@ def create_map_dataloader(
         dec_col="dec_deg",
         output_dir=map_dir,         
         survey='unwise-neo7', 
-        imgsize_pix = 224, 
-        file_format='jpg' )
+        imgsize_pix = 224 )
     
 
     dataset = ClusterDataset(
         map_dir,
-        description_path,
-        transform=transforms.Compose(data.main_transforms),
+        description_path
     )
 
     dataloader = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
@@ -238,7 +215,6 @@ def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_
     dataloaders = []
     
     for idx, row in data.iterrows():
-
         directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, str(idx))
         os.makedirs(directory, exist_ok=True)
 
@@ -273,12 +249,9 @@ def create_segmentation_plot(
     n_rows = max(1, (len(sample) + 1) // n_cols)
     n_cols = min(n_cols, len(sample))
 
-    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 5))
-
+    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 8))
     
     for i, (idx, dataloader) in enumerate(dataloaders):
-
-       
 
         cur_col = i % n_cols
 
@@ -299,10 +272,10 @@ def create_segmentation_plot(
         predictions.to_csv(path)
 
         cur_ax.plot()
-        subtitle = "Probability: " + "{:.4f}".format(float(sample_predictions.loc[str(idx), "y_prob"]))
+        subtitle = "Probability: " + "{:.4f}".format(float(sample_predictions.loc[int(idx), "y_prob"]))
         cur_ax.set_title(subtitle)
 
-        plot_size = plot_sizes[map_type]
+        plot_size = plot_radius[map_type] * 2 + 1
         center = int(plot_size//2)
 
         im = cur_ax.imshow(predictions["y_prob"].values.reshape(plot_size,plot_size).astype(float),
@@ -310,7 +283,7 @@ def create_segmentation_plot(
                         vmin = 0,
                         vmax = 1)
         cur_ax.axis('off')
-        cur_ax.plot(center, center, 'x', ms=7, color='red')
+        cur_ax.plot(center, center, 'o', ms=3, color='red')
 
     if len(sample) > 1:
         axes_ravel = axes.ravel().tolist()

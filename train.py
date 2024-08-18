@@ -211,7 +211,8 @@ class Predictor():
             np.array(y_names)
         ]).T, columns=["y_pred", "y_prob", "idx"])
 
-        predictions = predictions.set_index("idx").sort_index()
+        predictions = predictions.set_index("idx")
+        predictions.index = predictions.index.astype(int)
         
         return predictions
     

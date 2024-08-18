@@ -34,14 +34,11 @@ from config import settings
 
 np.random.seed(settings.SEED)
 
-TORCHVISION_MEAN = torch.Tensor([0.485, 0.456, 0.406])
-TORCHVISION_STD = torch.Tensor([0.229, 0.224, 0.225])
+# заглушка 
 
-# main_transforms = [
-#     transforms.ToTensor(),
-#     transforms.Resize((224, 224)),
-#     transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD),
-# ]
+main_transforms = [
+    transforms.Resize((224, 224)),
+]
 
 class DataPart(str, Enum):
     TRAIN = "train"
@@ -57,8 +54,12 @@ class ClusterDataset(Dataset):
 
         self.images_dir_path = images_dir_path
         self.description_df = pd.read_csv(
-            description_csv_path, dtype={"idx": str, "target": int}
+            description_csv_path, 
+            index_col=0,
+            dtype={"target": int}
         )
+        self.description_df.index = self.description_df.index.astype(str)
+        self.description_df.index.name = "idx"
 
         self.transform = transform
 
@@ -67,9 +68,10 @@ class ClusterDataset(Dataset):
 
     def __getitem__(self, index):
 
-        row = self.description_df.iloc[index]
+        row_index = self.description_df.index[index]
+        row = self.description_df.loc[row_index]
 
-        img_name= row["idx"]
+        img_name= row_index
 
         img_path = Path(self.images_dir_path, f"{img_name}.fits")
         img = self._read_img(img_path)
@@ -80,7 +82,7 @@ class ClusterDataset(Dataset):
         sample = {"idx": img_name, "image": img}
 
         if "target" in row:
-            label = self.description_df.iloc[index]["target"]
+            label = self.description_df.loc[row_index]["target"]
             sample["label"] = label
 
         return sample
