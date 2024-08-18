@@ -77,8 +77,8 @@ class MapType(str, Enum):
 
 
 plot_radius = {
-    MapType.SMALL: 2,
-    MapType.BIG: 4,
+    MapType.SMALL: 10,
+    MapType.BIG: 15,
 }
 
 # Map type, Data part and target class for each sample
@@ -202,8 +202,7 @@ def create_map_dataloader(
 
     dataset = ClusterDataset(
         map_dir,
-        description_path,
-        transform=transforms.Compose(data.main_transforms),
+        description_path
     )
 
     dataloader = DataLoader(dataset, batch_size=settings.BATCH_SIZE)
@@ -216,7 +215,6 @@ def prepare_sample_dataloaders(data: pd.DataFrame, sample_name: SampleName, map_
     dataloaders = []
     
     for idx, row in data.iterrows():
-
         directory = Path(settings.SEGMENTATION_SAMPLES_PATH, sample_name.value, str(idx))
         os.makedirs(directory, exist_ok=True)
 
@@ -251,8 +249,7 @@ def create_segmentation_plot(
     n_rows = max(1, (len(sample) + 1) // n_cols)
     n_cols = min(n_cols, len(sample))
 
-    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 5))
-
+    fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 8))
     
     for i, (idx, dataloader) in enumerate(dataloaders):
 
@@ -275,7 +272,7 @@ def create_segmentation_plot(
         predictions.to_csv(path)
 
         cur_ax.plot()
-        subtitle = "Probability: " + "{:.4f}".format(float(sample_predictions.loc[str(idx), "y_prob"]))
+        subtitle = "Probability: " + "{:.4f}".format(float(sample_predictions.loc[int(idx), "y_prob"]))
         cur_ax.set_title(subtitle)
 
         plot_size = plot_radius[map_type] * 2 + 1
@@ -286,7 +283,7 @@ def create_segmentation_plot(
                         vmin = 0,
                         vmax = 1)
         cur_ax.axis('off')
-        cur_ax.plot(center, center, 'x', ms=7, color='red')
+        cur_ax.plot(center, center, 'o', ms=3, color='red')
 
     if len(sample) > 1:
         axes_ravel = axes.ravel().tolist()
