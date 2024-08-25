@@ -62,7 +62,7 @@ parser.add_argument('--optimizer', choices=[name for name, _ in all_optimizers],
 
 args = parser.parse_args()
 
-selected_models = [(model_name, model.load_model()) for model_name, model in all_models if model_name in args.models]
+selected_models = [(model_name, model) for model_name, model in all_models if model_name in args.models]
 
 num_epochs = args.epochs
 lr = args.lr
@@ -91,6 +91,8 @@ wandb.config.momentum = momentum
 wandb.config.optimizer = optimizer_name
 
 for model_name, model in selected_models:
+
+     model = model.load_model()
      optimizer_class = dict(all_optimizers)[optimizer_name]
 
      if optimizer_name in ['SGD', 'RMSprop']:
@@ -148,6 +150,11 @@ for model_name, model in selected_models:
 
      metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes)
 
+     del model
+
+metrics.combine_metrics(selected_models, optimizer_name)
+
+raise
 
 wandb.finish()
 

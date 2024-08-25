@@ -1,12 +1,16 @@
 import numpy as np
 
-from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score
+from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score, fbeta_score, roc_auc_score, auc
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from sklearn.metrics import roc_curve
 from sklearn.metrics import precision_recall_curve
 
 import matplotlib.pyplot as plt
+import json
+import os
+from pathlib import Path
+import pandas as pd
 
 from config import settings
 
@@ -43,8 +47,9 @@ def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, pa
     plt.close()
 
 def modelPerformance(model_name, optimizer_name,
-                     y_train_target, y_train_predicted, y_train_classified,
+                     y_target, y_predicted, y_classified,
                      classes, 
+                     f_beta = 2,
                     #  result, val_result
                      ):
     '''
@@ -58,12 +63,12 @@ def modelPerformance(model_name, optimizer_name,
         Name of model.
     optimizer_name: string
         Name of optimizer.
-    y_train_target: 1d array-like, or label indicator array / sparse matrix
+    y_target: 1d array-like, or label indicator array / sparse matrix
         Target scores, can either be probability estimates of the positive class, confidence values, or non-thresholded
         measure of decisions (as returned by “decision_function” on some classifiers).
-    y_train_predicted: 1d array-like, or label indicator array / sparse matrix
+    y_predicted: 1d array-like, or label indicator array / sparse matrix
         Predicted labels, as returned by a classifier.
-    y_train_classified: 1d array-like, or label indicator array / sparse matrix
+    y_classified: 1d array-like, or label indicator array / sparse matrix
         True binary labels.
     classes: List
         Labels of classifier.
@@ -76,57 +81,86 @@ def modelPerformance(model_name, optimizer_name,
     Returns : void
     '''
                          
-    acc = accuracy_score(y_train_target, y_train_predicted)
-    modelPrecision = precision_score(y_train_target, y_train_predicted)
-    modelRecall = recall_score(y_train_target, y_train_predicted)
-    f1_measure = f1_score(y_train_target, y_train_predicted)
+    acc = accuracy_score(y_target, y_predicted)
+    precision = precision_score(y_target, y_predicted)
+    recall = recall_score(y_target, y_predicted)
+    f1_measure = f1_score(y_target, y_predicted)
+    fbeta_measure = fbeta_score(y_target, y_predicted, beta=f_beta)
 
-    cm = confusion_matrix(y_train_target, y_train_predicted)
+    cm = confusion_matrix(y_target, y_predicted)
     tn, fp, fn, tp = cm.ravel()
-    fpr = fp/(fp+tn)
+    fpr_measure = fp/(fp+tn)
 
-    # save metrics in .txt file
-    with open(f'{settings.METRICS_PATH}/record_metrics.txt', 'a', encoding='utf8') as w_file:
-        w_file.write(f'{model_name}; {optimizer_name} \n')
-        w_file.write(('Test accuracy: %.2f %%' % (acc*100)) + '\n')
-        w_file.write(('Test Precision: %.2f %%' % (modelPrecision*100)) + '\n')
-        w_file.write(('Test Recall or (TPR): %.2f %%' % (modelRecall*100)) + '\n')
-        w_file.write(('Test F1-Score: %.2f %%' % (f1_measure*100)) + '\n')
-        w_file.write(('Test Fall-out (FPR): %.2f %%' % (fpr*100)) + '\n')
-        w_file.write('----------\n')
+    roc_auc = roc_auc_score(y_target, y_predicted)
+
+    model_path = Path(settings.METRICS_PATH, f"{model_name}_{optimizer_name}")
+    os.makedirs(model_path, exist_ok=True)
 
     # plot roc curve
 
-    fpr, tpr, thresholds = roc_curve(y_train_target, y_train_classified)
+    fpr, tpr, _ = roc_curve(y_target, y_classified)
     plt.plot(fpr, tpr, linewidth=2, label='')
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate, FPR')
     plt.ylabel('True Positive Rate, TPR')
     plt.title('ROC curve')
     plt.grid(True, linestyle='--', alpha=0.5)
-    plt.savefig(f'{settings.METRICS_PATH}/{model_name}_{optimizer_name}_ROC.png')
+    plt.savefig(Path(model_path, 'roc_curve.png'))
     plt.close()
     # plot precision recall
 
-    precisions, recalls, thresholds = precision_recall_curve(y_train_target, y_train_classified)
+    precisions, recalls, _ = precision_recall_curve(y_target, y_classified)
+# Step 6: Calculate Area Under the PR curve.
+    pr_auc = auc(recalls, precisions)
     plt.plot(recalls, precisions, linewidth=2)
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.title('Precision-Recall curve')
     plt.grid(True, linestyle='--', alpha=0.5)
-    plt.savefig(f'{settings.METRICS_PATH}/{model_name}_{optimizer_name}_Precision_Recall_curve.png')
+    plt.savefig(Path(model_path, 'precision_recall_curve.png'))
     plt.close()
+
     # confusion matrices
     e_00, e_11 = cm[0, 0] / (cm[0, 0] + cm[0, 1]), cm[1, 1] / (cm[1, 0] + cm[1, 1])
     weighted_cm = np.array([[e_00, 1 - e_00], [1 - e_11, e_11]])
 
-    cmDisp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes).plot()
-    plt.savefig(f'{settings.METRICS_PATH}/{model_name}_{optimizer_name}_ConfusionMatrix.png')
-    plt.close()
-    w_cmDisp = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
-    plt.savefig(f'{settings.METRICS_PATH}/{model_name}_{optimizer_name}_WeightedConfusionMatrix.png')
+    _ = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes).plot()
+    plt.savefig(Path(model_path, 'confusion_matrix.png'))
     plt.close()
 
-    # TODO Is it needed if we have wandb?
-    # plot_loss_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_losses.png')
-    # plot_accuracies_by_model(model_name, result, val_result, path=f'metrics/{model_name}_{optimizer_name}_accuracies.png')
+    _ = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
+    plt.savefig(Path(model_path, 'weighted_confusion_matrix.png'))
+    plt.close()
+
+    metrics = {
+        "Accuracy": acc,
+        "Precision": precision,
+        "Recall (TPR)": recall,
+        "Fall-out (FPR)": fpr_measure,
+        "PR AUC": pr_auc,
+        "ROC AUC": roc_auc,
+        "F-1 score": f1_measure,
+        "Beta": f_beta,
+        "F-beta score": fbeta_measure,
+    }
+
+    with open(Path(model_path, 'metrics.json'), "w") as file:
+        json.dump(metrics, file)
+
+def combine_metrics(selected_models: list, optimizer_name):
+    for model_name, _ in selected_models:
+
+        all_metrics = {}
+        for model_name, _ in selected_models:
+            combination = f"{model_name}_{optimizer_name}"
+            metrics_path = Path(settings.METRICS_PATH, combination, "metrics.json")
+
+            with open(metrics_path) as file:
+                all_metrics[combination] = json.load(file)
+
+        metrics_frame = pd.DataFrame(all_metrics).T
+        metrics_frame.index.name = "Combination"
+
+        metrics_frame.to_csv(Path(settings.METRICS_PATH, "metrics.csv"))
+
+    return metrics_frame
