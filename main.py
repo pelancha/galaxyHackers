@@ -146,14 +146,15 @@ for model_name, model in selected_models:
 
      wandb.log({"Train Metrics": train_table, "Validation Metrics": val_table})
 
-     
-     predictions, *_ = trainer.test(test_loader)
+     y_pred, y_probs, y_true, *_ = trainer.test(test_loader)
 
-     metrics.modelPerformance(model_name, optimizer_name, predictions, classes)
+     metrics.modelPerformance(model_name, optimizer_name, y_true, y_pred, y_probs, classes)
 
      del model
 
 metrics.combine_metrics(selected_models, optimizer_name)
+
+raise
 
 wandb.finish()
 

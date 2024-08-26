@@ -31,16 +31,12 @@ from train import Predictor
 
 def load_model(model: torch.nn.Module, optimizer_name, device):
 
-    model = model.load_model()
+    model = model.to(device)
     weights_name = f'best_weights_{model.__class__.__name__}_{optimizer_name}.pth'
     weights_path = Path(settings.BEST_MODELS_PATH, weights_name )
     loaded_model = torch.load(weights_path, map_location=device)
 
     model.load_state_dict(loaded_model)
-    model = model.to(device)
-
-    return model
-
 
 def predict_test(model: torch.nn.Module, optimizer_name):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -130,7 +126,8 @@ def create_sample(sample_name, predictor: Predictor):
 
     sample_description_path = Path(settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH, f"{sample_name.value}.csv", index=True)
 
-    sample.to_csv(sample_description_path)
+    if not os.path.exists(sample_description_path):
+        sample.to_csv(sample_description_path)
 
     dataset = ClusterDataset(
         images_dir_path= Path(settings.DATA_PATH, source.value),
@@ -189,12 +186,9 @@ def create_map_dataloader(
     description_path = Path(map_dir, f"description.csv")
 
     map_data = pd.DataFrame({'name': name, 'ra_deg': ras, 'dec_deg': decs}, index=pd.Index(idxs, name="idx"))
-    map_data['red_shift'] = np.nan
-    map_data['red_shift_type'] = 'nan'
-    map_data['target'] = 0
 
-
-    map_data.to_csv(description_path)
+    if not os.path.exists(description_path):
+        map_data.to_csv(description_path)
 
     legacy_for_img.grab_cutouts(
         target_file=map_data, 
@@ -305,8 +299,8 @@ def create_segmentation_plot(
 
 def create_segmentation_plots(model, model_name, optimizer_name, map_type: MapType=MapType.SMALL):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
- 
-    model = load_model(model, optimizer_name, device)
+
+    load_model(model, optimizer_name, device)
 
     predictor = Predictor(model, device=device)
 

@@ -47,7 +47,7 @@ def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, pa
     plt.close()
 
 def modelPerformance(model_name, optimizer_name,
-                     predictions: pd.DataFrame,
+                     y_target, y_predicted, y_classified,
                      classes, 
                      f_beta = 2,
                     #  result, val_result
@@ -81,24 +81,24 @@ def modelPerformance(model_name, optimizer_name,
     Returns : void
     '''
                          
-    acc = accuracy_score(predictions.y_true, predictions.y_pred)
-    precision = precision_score(predictions.y_true, predictions.y_pred)
-    recall = recall_score(predictions.y_true, predictions.y_pred)
-    f1_measure = f1_score(predictions.y_true, predictions.y_pred)
-    fbeta_measure = fbeta_score(predictions.y_true, predictions.y_pred, beta=f_beta)
+    acc = accuracy_score(y_target, y_predicted)
+    precision = precision_score(y_target, y_predicted)
+    recall = recall_score(y_target, y_predicted)
+    f1_measure = f1_score(y_target, y_predicted)
+    fbeta_measure = fbeta_score(y_target, y_predicted, beta=f_beta)
 
-    cm = confusion_matrix(predictions.y_true, predictions.y_pred)
+    cm = confusion_matrix(y_target, y_predicted)
     tn, fp, fn, tp = cm.ravel()
     fpr_measure = fp/(fp+tn)
 
-    roc_auc = roc_auc_score(predictions.y_true, predictions.y_pred)
+    roc_auc = roc_auc_score(y_target, y_predicted)
 
     model_path = Path(settings.METRICS_PATH, f"{model_name}_{optimizer_name}")
     os.makedirs(model_path, exist_ok=True)
 
     # plot roc curve
 
-    fpr, tpr, _ = roc_curve(predictions.y_true, predictions.y_probs)
+    fpr, tpr, _ = roc_curve(y_target, y_classified)
     plt.plot(fpr, tpr, linewidth=2, label='')
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate, FPR')
@@ -109,7 +109,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.close()
     # plot precision recall
 
-    precisions, recalls, _ = precision_recall_curve(predictions.y_true, predictions.y_probs)
+    precisions, recalls, _ = precision_recall_curve(y_target, y_classified)
 # Step 6: Calculate Area Under the PR curve.
     pr_auc = auc(recalls, precisions)
     plt.plot(recalls, precisions, linewidth=2)
@@ -130,30 +130,6 @@ def modelPerformance(model_name, optimizer_name,
 
     _ = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
     plt.savefig(Path(model_path, 'weighted_confusion_matrix.png'))
-    plt.close()
-
-    red_shift_predictions = predictions.loc[predictions.red_shift.notna()]
-    red_shift_predictions = red_shift_predictions.sort_values(by='red_shift')
-
-    n_bins = 10
-    # Assume df is your dataframe
-    # Create 10 equal-sized buckets based on red_shift
-    red_shift_predictions['bucket'] = pd.qcut(red_shift_predictions['red_shift'], n_bins)
-
-    # Drop rows with missing y_true
-    red_shift_predictions = red_shift_predictions.dropna(subset=['y_true'])
-    recall_per_bin_type = red_shift_predictions.groupby(['bucket', 'red_shift_type']).apply(lambda x: recall_score(x['y_true'], x['y_pred'])).unstack()
-
-    # Plot the results
-    recall_per_bin_type.plot(kind='bar', stacked=True, figsize=(10, 6))
-
-    plt.title('Recall by Red Shift Bins and Red Shift Type')
-    plt.xlabel('Red Shift Bins')
-    plt.ylabel('Recall')
-    plt.legend(title='Red Shift Type')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(Path(model_path, 'redshift_recall.png'))
     plt.close()
 
     metrics = {
