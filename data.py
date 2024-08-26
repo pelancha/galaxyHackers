@@ -210,7 +210,7 @@ def read_mc():
 
     mc_frame["red_shift"] = np.where(mc_frame["Specz"].notna(), mc_frame["Specz"], mc_frame["Photz"])
     mc_frame["red_shift_type"] = np.where(mc_frame["Specz"].notna(),"spec", np.nan)
-    mc_frame["red_shift_type"] = np.where(mc_frame["Photz"].notna(), "phot", np.nan)
+    mc_frame["red_shift_type"] = np.where(mc_frame["Photz"].notna() & mc_frame["red_shift_type"].isna(), "phot", np.nan)
 
 
     return mc_frame
