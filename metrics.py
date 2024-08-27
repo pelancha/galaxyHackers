@@ -140,22 +140,30 @@ def modelPerformance(model_name, optimizer_name,
     # Create 10 equal-sized buckets based on red_shift
     red_shift_predictions['bucket'] = pd.qcut(red_shift_predictions['red_shift'], n_bins)
 
-    # Drop rows with missing y_true
-    red_shift_predictions = red_shift_predictions.dropna(subset=['y_true'])
-    recall_per_bin_type = red_shift_predictions.groupby(['bucket', 'red_shift_type']).apply(lambda x: recall_score(x['y_true'], x['y_pred'])).unstack()
+    # Calculate recall for each bin
+    recall_per_bin = red_shift_predictions.groupby('bucket').apply(lambda x: recall_score(x['y_true'], x['y_pred']))
 
-    # Plot the results
-    recall_per_bin_type.plot(kind='bar', stacked=True, figsize=(10, 6))
+    # Calculate proportions of red_shift_type within each bin
+    proportions = red_shift_predictions.groupby('bucket')['red_shift_type'].value_counts(normalize=True).unstack().fillna(0)
 
-    plt.title('Recall by Red Shift Bins and Red Shift Type')
-    plt.xlabel('Red Shift Bins')
+    # Plotting
+  # Plotting
+    bars = []
+    for i in range(proportions.shape[1]):
+        bars.append(proportions.iloc[:, i] * recall_per_bin)
+
+    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), color='skyblue', edgecolor='black')
+    for i in range(1, len(bars)):
+        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], color=plt.cm.Paired(i), edgecolor='black')
+
+    plt.title('Recall by Red Shift Bins with Proportional Coloring by Red Shift Type')
+    plt.xlabel('Red Shift Bin')
     plt.ylabel('Recall')
-    plt.legend(title='Red Shift Type')
-    plt.xticks(rotation=45)
+    plt.legend(proportions.columns, title='Red Shift Type', bbox_to_anchor=(1.05, 1), loc='upper left')
+
     plt.tight_layout()
     plt.savefig(Path(model_path, 'redshift_recall.png'))
     plt.close()
-
     metrics = {
         "Accuracy": acc,
         "Precision": precision,
