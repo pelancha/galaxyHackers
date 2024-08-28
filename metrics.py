@@ -110,7 +110,7 @@ def modelPerformance(model_name, optimizer_name,
     # plot precision recall
 
     precisions, recalls, _ = precision_recall_curve(predictions.y_true, predictions.y_probs)
-# Step 6: Calculate Area Under the PR curve.
+    # Step 6: Calculate Area Under the PR curve.
     pr_auc = auc(recalls, precisions)
     plt.plot(recalls, precisions, linewidth=2)
     plt.xlabel('Recall')
@@ -146,15 +146,28 @@ def modelPerformance(model_name, optimizer_name,
     # Calculate proportions of red_shift_type within each bin
     proportions = red_shift_predictions.groupby('bucket')['red_shift_type'].value_counts(normalize=True).unstack().fillna(0)
 
-    # Plotting
-  # Plotting
+    fig = plt.figure() # Create matplotlib figure
+
+    ax = fig.add_subplot(111) # Create matplotlib axes
+    ax2 = ax.twinx() # Create another axes that shares the same x-axis as ax.
+
+    width = 0.3
+
     bars = []
     for i in range(proportions.shape[1]):
         bars.append(proportions.iloc[:, i] * recall_per_bin)
 
-    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), color='skyblue', edgecolor='black')
+    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), ax=ax, color='skyblue', position=0, width=width, edgecolor="black")
     for i in range(1, len(bars)):
-        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], color=plt.cm.Paired(i), edgecolor='black')
+        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], ax=ax, color=plt.cm.Paired(i), position=0, width=width, edgecolor="black")
+
+    bars = []
+    for i in range(proportions.shape[1]):
+        bars.append(proportions.iloc[:, i])
+
+    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), ax=ax2, color='skyblue', position=1, width=width,edgecolor='black')
+    for i in range(1, len(bars)):
+        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], ax=ax2, color=plt.cm.Paired(i), position=1, width=width,edgecolor='black')
 
     plt.title('Recall by Red Shift Bins with Proportional Coloring by Red Shift Type')
     plt.xlabel('Red Shift Bin')
@@ -164,6 +177,7 @@ def modelPerformance(model_name, optimizer_name,
     plt.tight_layout()
     plt.savefig(Path(model_path, 'redshift_recall.png'))
     plt.close()
+
     metrics = {
         "Accuracy": acc,
         "Precision": precision,
