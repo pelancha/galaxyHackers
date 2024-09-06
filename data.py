@@ -36,8 +36,12 @@ np.random.seed(settings.SEED)
 
 # заглушка 
 
+TORCHVISION_MEAN = [23.19058950345032, 22.780995295792817]
+TORCHVISION_STD = [106.89880134344101, 100.32284196853638]
+
 main_transforms = [
     transforms.Resize((224, 224)),
+    transforms.Normalize(mean=TORCHVISION_MEAN, std=TORCHVISION_STD)
 ]
 
 class DataPart(str, Enum):
@@ -480,17 +484,17 @@ def create_dataloaders():
 
     from collections import defaultdict
 
-    # data_transforms = defaultdict(lambda: transforms.Compose(main_transforms))
+    data_transforms = defaultdict(lambda: transforms.Compose(main_transforms))
 
-    # data_transforms[DataPart.TRAIN] = transforms.Compose(
-    #                                         [
-    #                                             *main_transforms,
-    #                                             transforms.RandomRotation(
-    #                                                 15,
-    #                                             ),
-    #                                             transforms.RandomHorizontalFlip(),
-    #                                         ]
-    #                                     )
+    data_transforms[DataPart.TRAIN] = transforms.Compose(
+                                            [
+                                                *main_transforms,
+                                                transforms.RandomRotation(
+                                                    15,
+                                                ),
+                                                transforms.RandomHorizontalFlip(),
+                                            ]
+                                        )
    
 
     custom_datasets = {}
