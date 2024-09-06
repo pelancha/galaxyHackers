@@ -58,7 +58,9 @@ class ClusterDataset(Dataset):
             index_col=0,
             dtype={"target": int}
         )
+
         self.description_df.index = self.description_df.index.astype(str)
+        self.description_df.loc[:, "red_shift"] = self.description_df["red_shift"].astype(float)
         self.description_df.index.name = "idx"
 
         self.transform = transform
@@ -66,12 +68,12 @@ class ClusterDataset(Dataset):
     def __len__(self):
         return len(self.description_df)
 
-    def __getitem__(self, index):
+    def __getitem__(self, idx):
 
-        row_index = self.description_df.index[index]
+        row_index = self.description_df.index[idx]
         row = self.description_df.loc[row_index]
 
-        img_name= row_index
+        img_name = row_index
 
         img_path = Path(self.images_dir_path, f"{img_name}.fits")
         img = self._read_img(img_path)
@@ -79,11 +81,14 @@ class ClusterDataset(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        sample = {"idx": img_name, "image": img}
+        description = {
+            "idx": img_name,
+            "red_shift": row["red_shift"],
+            "red_shift_type": str(row["red_shift_type"]),
+        }
+        sample = {"image": img, "label": row["target"], "description": description}
 
-        if "target" in row:
-            label = self.description_df.loc[row_index]["target"]
-            sample["label"] = label
+
 
         return sample
 
@@ -158,7 +163,12 @@ def read_dr5():
 
     dr5_frame["name"] = dr5_frame["name"].astype(str)
 
-    dr5_frame = dr5_frame.rename(columns={"RADeg": "ra_deg", "decDeg": "dec_deg"})
+    dr5_frame = dr5_frame.rename(columns={
+        "RADeg": "ra_deg",
+        "decDeg": "dec_deg", 
+        "redshift": "red_shift",
+        "redshiftType": "red_shift_type",
+        })
     dr5_frame = dr5_frame.reset_index(drop=True)
     dr5_frame.index.name = "idx"
     dr5_frame = dr5_frame.reset_index(drop=False)
@@ -197,6 +207,10 @@ def read_mc():
     )
 
     mc_frame = mc_frame.rename(columns={"Name": "name"})
+
+    mc_frame["red_shift"] = np.where(mc_frame["Specz"].notna(), mc_frame["Specz"], mc_frame["Photz"])
+    mc_frame["red_shift_type"] = np.where(mc_frame["Specz"].notna(),"spec", np.nan)
+    mc_frame["red_shift_type"] = np.where(mc_frame["Photz"].notna() & mc_frame["red_shift_type"].isna(), "phot", np.nan)
 
 
     return mc_frame
@@ -325,7 +339,7 @@ def create_negative_class_mc():
 
 def create_data_dr5():
     clusters = read_dr5()
-    clusters = clusters[["name", "ra_deg", "dec_deg"]]
+    clusters = clusters[["name", "ra_deg", "dec_deg", "red_shift", "red_shift_type"]]
     clusters["target"] = 1
     random = create_negative_class_dr5()
     random["target"] = 0
@@ -333,6 +347,9 @@ def create_data_dr5():
     data_dr5[["ra_deg", "dec_deg"]] = data_dr5[["ra_deg", "dec_deg"]].astype(float)
 
     data_dr5 = data_dr5.sample(frac=1, random_state=1)
+
+    data_dr5.loc[:, "red_shift_type"] = data_dr5["red_shift_type"].astype(str)
+
 
     data_dr5 = data_dr5.reset_index(drop=True)
     data_dr5.index.name = "idx"
@@ -342,13 +359,16 @@ def create_data_dr5():
 
 def create_data_mc():
     clusters = read_mc()
-    clusters = clusters[["name", "ra_deg", "dec_deg"]]
+    clusters = clusters[["name", "ra_deg", "dec_deg", "red_shift", "red_shift_type"]]
     clusters["target"] = 1
     random = create_negative_class_mc()
     random["target"] = 0
     data_mc = pd.concat([clusters, random]).reset_index(drop=True)
 
     data_mc[["ra_deg", "dec_deg"]] = data_mc[["ra_deg", "dec_deg"]].astype(float)
+
+    data_mc.loc[:, "red_shift_type"] = data_mc["red_shift_type"].astype(str)
+
 
     data_mc = data_mc.reset_index(drop=True)
     data_mc.index.name = "idx"
@@ -359,8 +379,11 @@ def create_data_gaia():
     
     clusters = read_gaia()
 
+    clusters['red_shift'] = np.nan
+    clusters['red_shift_type'] = 'nan'
     clusters["target"] = 0
     clusters.index.name = "idx"
+
 
     return clusters
 
@@ -413,8 +436,7 @@ def ddos():
 
         description_file_path = os.path.join(description_path, f"{part.value}.csv")
 
-        if not os.path.exists(description_file_path):
-            description.to_csv(description_file_path, index=True)
+        description.to_csv(description_file_path, index=True)
 
         path = os.path.join(settings.DATA_PATH, part.value)
         legacy_for_img.grab_cutouts(
@@ -431,13 +453,13 @@ def ddos():
 """Create dataloaders"""
 
 
-def show_original(img):
-    denormalized_img = img.clone()
-    for channel, m, s in zip(denormalized_img, TORCHVISION_MEAN, TORCHVISION_STD):
-        channel.mul_(s).add_(m)
+# def show_original(img):
+#     denormalized_img = img.clone()
+#     for channel, m, s in zip(denormalized_img, TORCHVISION_MEAN, TORCHVISION_STD):
+#         channel.mul_(s).add_(m)
 
-    denormalized_img = denormalized_img.numpy()
-    plt.imshow(np.transpose(denormalized_img, (1, 2, 0)))
+#     denormalized_img = denormalized_img.numpy()
+#     plt.imshow(np.transpose(denormalized_img, (1, 2, 0)))
 
 
 

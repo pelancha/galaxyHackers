@@ -47,7 +47,7 @@ def plot_accuracies_by_model(model_name: str, result: dict, val_result: dict, pa
     plt.close()
 
 def modelPerformance(model_name, optimizer_name,
-                     y_target, y_predicted, y_classified,
+                     predictions: pd.DataFrame,
                      classes, 
                      f_beta = 2,
                     #  result, val_result
@@ -81,24 +81,24 @@ def modelPerformance(model_name, optimizer_name,
     Returns : void
     '''
                          
-    acc = accuracy_score(y_target, y_predicted)
-    precision = precision_score(y_target, y_predicted)
-    recall = recall_score(y_target, y_predicted)
-    f1_measure = f1_score(y_target, y_predicted)
-    fbeta_measure = fbeta_score(y_target, y_predicted, beta=f_beta)
+    acc = accuracy_score(predictions.y_true, predictions.y_pred)
+    precision = precision_score(predictions.y_true, predictions.y_pred)
+    recall = recall_score(predictions.y_true, predictions.y_pred)
+    f1_measure = f1_score(predictions.y_true, predictions.y_pred)
+    fbeta_measure = fbeta_score(predictions.y_true, predictions.y_pred, beta=f_beta)
 
-    cm = confusion_matrix(y_target, y_predicted)
+    cm = confusion_matrix(predictions.y_true, predictions.y_pred)
     tn, fp, fn, tp = cm.ravel()
     fpr_measure = fp/(fp+tn)
 
-    roc_auc = roc_auc_score(y_target, y_predicted)
+    roc_auc = roc_auc_score(predictions.y_true, predictions.y_pred)
 
     model_path = Path(settings.METRICS_PATH, f"{model_name}_{optimizer_name}")
     os.makedirs(model_path, exist_ok=True)
 
     # plot roc curve
 
-    fpr, tpr, _ = roc_curve(y_target, y_classified)
+    fpr, tpr, _ = roc_curve(predictions.y_true, predictions.y_probs)
     plt.plot(fpr, tpr, linewidth=2, label='')
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate, FPR')
@@ -109,8 +109,8 @@ def modelPerformance(model_name, optimizer_name,
     plt.close()
     # plot precision recall
 
-    precisions, recalls, _ = precision_recall_curve(y_target, y_classified)
-# Step 6: Calculate Area Under the PR curve.
+    precisions, recalls, _ = precision_recall_curve(predictions.y_true, predictions.y_probs)
+    # Step 6: Calculate Area Under the PR curve.
     pr_auc = auc(recalls, precisions)
     plt.plot(recalls, precisions, linewidth=2)
     plt.xlabel('Recall')
@@ -130,6 +130,52 @@ def modelPerformance(model_name, optimizer_name,
 
     _ = ConfusionMatrixDisplay(confusion_matrix=weighted_cm, display_labels=classes).plot()
     plt.savefig(Path(model_path, 'weighted_confusion_matrix.png'))
+    plt.close()
+
+    red_shift_predictions = predictions.loc[predictions.red_shift.notna()]
+    red_shift_predictions = red_shift_predictions.sort_values(by='red_shift')
+
+    n_bins = 10
+    # Assume df is your dataframe
+    # Create 10 equal-sized buckets based on red_shift
+    red_shift_predictions['bucket'] = pd.qcut(red_shift_predictions['red_shift'], n_bins)
+
+    # Calculate recall for each bin
+    recall_per_bin = red_shift_predictions.groupby('bucket').apply(lambda x: recall_score(x['y_true'], x['y_pred']))
+
+    # Calculate proportions of red_shift_type within each bin
+    proportions = red_shift_predictions.groupby('bucket')['red_shift_type'].value_counts(normalize=True).unstack().fillna(0)
+
+    fig = plt.figure() # Create matplotlib figure
+
+    ax = fig.add_subplot(111) # Create matplotlib axes
+    ax2 = ax.twinx() # Create another axes that shares the same x-axis as ax.
+
+    width = 0.3
+
+    bars = []
+    for i in range(proportions.shape[1]):
+        bars.append(proportions.iloc[:, i] * recall_per_bin)
+
+    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), ax=ax, color='skyblue', position=0, width=width, edgecolor="black")
+    for i in range(1, len(bars)):
+        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], ax=ax, color=plt.cm.Paired(i), position=0, width=width, edgecolor="black")
+
+    bars = []
+    for i in range(proportions.shape[1]):
+        bars.append(proportions.iloc[:, i])
+
+    bars[0].plot(kind='bar', stacked=True, figsize=(10, 6), ax=ax2, color='skyblue', position=1, width=width,edgecolor='black')
+    for i in range(1, len(bars)):
+        bars[i].plot(kind='bar', stacked=True, bottom=bars[i-1], ax=ax2, color=plt.cm.Paired(i), position=1, width=width,edgecolor='black')
+
+    plt.title('Recall by Red Shift Bins with Proportional Coloring by Red Shift Type')
+    plt.xlabel('Red Shift Bin')
+    plt.ylabel('Recall')
+    plt.legend(proportions.columns, title='Red Shift Type', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    plt.tight_layout()
+    plt.savefig(Path(model_path, 'redshift_recall.png'))
     plt.close()
 
     metrics = {

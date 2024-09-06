@@ -82,13 +82,18 @@ class Trainer:
         best_loss = float('inf') # +inf
 
 
-        for epoch in trange(num_epochs, unit="epoch", leave=False, desc=f'Training {model.__class__.__name__} with {optimizer.__class__.__name__} optimizer'):
+        for _ in trange(
+            num_epochs, 
+            unit="epoch", 
+            leave=False, 
+            desc=f'Training {model.__class__.__name__} with {optimizer.__class__.__name__} optimizer'
+            ):
 
             
             model.train()
             train_losses = []
             for batch in tqdm(self.train_dataloader, unit="batch"):
-                batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items() }
+
                 *_, loss, acc = self.compute_all(batch)
 
                 train_losses.append(loss)
@@ -107,8 +112,7 @@ class Trainer:
             val_losses = []
             val_accs = []
 
-            for batch in tqdm(self.train_dataloader):
-                batch = {k: v.to(self.device)  if k != "idx" else v for k, v in batch.items()}
+            for batch in tqdm(self.val_dataloader):
                 *_, loss, acc = self.compute_all(batch)
                 val_losses.append(loss.item())
                 val_accs.append(acc)
@@ -130,10 +134,10 @@ class Trainer:
         test_losses = []
         test_accs = []
 
-        y_pred, y_probs, y_true = [], [], []
+        y_pred, y_probs, y_true, descriptions = [], [], [], []
 
         for batch in tqdm(test_dataloader):
-            batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items()}
+
             logits, outputs, labels, loss, acc = self.compute_all(batch)
             test_losses.append(loss.item())
             test_accs.append(acc)
@@ -142,14 +146,22 @@ class Trainer:
             y_pred.extend(outputs.data.cpu().numpy().ravel())
             y_true.extend(labels.data.cpu().numpy().ravel())
 
-        return y_pred, y_probs, y_true, test_losses, test_accs
+            descriptions.append(pd.DataFrame(batch['description']))
+
+
+        predictions = pd.concat(descriptions).reset_index(drop=True)
+        predictions['y_pred'] = y_pred
+        predictions['y_probs'] = y_probs
+        predictions['y_true'] = y_true
+
+        return predictions, test_losses, test_accs,
 
 
   
 
     def compute_all(self, batch):  # удобно сделать функцию, в которой вычисляется лосс по пришедшему батчу
-        x = batch['image']
-        y = batch['label']
+        x = batch['image'].to(self.device)
+        y = batch['label'].to(self.device)
         logits = self.model(x)
 
         assert self.criterion is not None 
@@ -191,26 +203,27 @@ class Predictor():
 
     def predict(self, dataloader: DataLoader):
 
-        y_pred, y_prob, y_names = [], [], []
+        y_pred, y_prob, descriptions = [], [], []
 
 
         for batch in tqdm(dataloader):
-            batch = {k: v.to(self.device) if k != "idx" else v for k, v in batch.items()}
 
-            logits, outputs, idxs = self.compute_all(batch)
+            logits, outputs = self.compute_all(batch)
 
             y_pred.extend(outputs.data.cpu().numpy().ravel())
             y_prob.extend(logits[:, 1].data.cpu().numpy().ravel())
-            y_names.extend(idxs)
+            descriptions.append(pd.DataFrame(batch['description']))
 
 
         predictions = pd.DataFrame(
         np.array([
             np.array(y_pred), 
-            np.array(y_prob),
-            np.array(y_names)
-        ]).T, columns=["y_pred", "y_prob", "idx"])
+            np.array(y_prob)
+        ]).T, columns=["y_pred", "y_prob"]).reset_index(drop=True)
 
+        description_frame = pd.concat(descriptions).reset_index(drop=True)
+
+        predictions = pd.concat([predictions, description_frame], axis=1)
         predictions = predictions.set_index("idx")
         predictions.index = predictions.index.astype(int)
         
@@ -218,15 +231,12 @@ class Predictor():
     
 
     def compute_all(self, batch): 
-        try:
-            x = batch['image']
-            idx = batch['idx']
-        except:
-            raise ValueError(list(batch.keys()))
+
+        x = batch['image'].to(self.device)
 
         logits = self.model(x)
 
         outputs = logits.argmax(axis=1)
 
 
-        return logits, outputs, idx
+        return logits, outputs
