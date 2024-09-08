@@ -34,8 +34,6 @@ from config import settings
 
 np.random.seed(settings.SEED)
 
-# заглушка 
-
 TORCHVISION_MEAN = [23.19058950345032, 22.780995295792817]
 TORCHVISION_STD = [106.89880134344101, 100.32284196853638]
 
