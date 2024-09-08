@@ -23,7 +23,7 @@ settings.SEGMENTATION_SAMPLES_PATH = Path(settings.SEGMENTATION_PATH, "samples/"
 settings.SEGMENTATION_SAMPLES_DESCRIPTION_PATH = Path(settings.SEGMENTATION_SAMPLES_PATH, "description/")
 settings.SEGMENTATION_MAPS_PATH = Path(settings.SEGMENTATION_PATH, "maps/")
 
-
+# TODO: fix FALLBACK_URL in MAP_ACT_CONFIG and DR5_CONFIG
 settings.MAP_ACT_CONFIG = {
     "RENAME_DICT" : {
         "SOURCE": Path(settings.DATA_PATH, settings.MAP_ACT_ROUTE), 
@@ -31,7 +31,7 @@ settings.MAP_ACT_CONFIG = {
         },
     "URL": "http://oshi.at/JTuj",
     "ZIPPED_OUTPUT_PATH": Path(settings.DATA_PATH, "ACT.zip"),
-    "FALLBACK_URL" : urllib.parse.urljoin(settings.ARCHIVE_DR5_URL, 'maps/', settings.MAP_ACT_ROUTE),
+    "FALLBACK_URL" : 'https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/maps/act_planck_dr5.01_s08s18_AA_f220_daynight_fullivar.fits',
     "OUTPUT_PATH": str(settings.MAP_ACT_PATH)
 }
 
@@ -42,7 +42,7 @@ settings.DR5_CONFIG = {
          },
     "URL": "http://oshi.at/ysSg",
     "ZIPPED_OUTPUT_PATH": Path(settings.DATA_PATH, "dr5.zip"),
-    "FALLBACK_URL" : urllib.parse.urljoin(settings.ARCHIVE_DR5_URL, settings.DR5_CLUSTERS_ROUTE),
+    "FALLBACK_URL" : 'https://lambda.gsfc.nasa.gov/data/suborbital/ACT/ACT_dr5/DR5_cluster-catalog_v1.1.fits',
     "OUTPUT_PATH": str(settings.DR5_CLUSTERS_PATH) 
 }
 
