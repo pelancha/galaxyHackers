@@ -14,6 +14,16 @@ import pandas as pd
 
 from config import settings
 
+def probabilities_hist(predictions_clusters, predictions_non_clusters, model_path):
+    bins = np.arange(0, 1.01, 0.05)
+    plt.hist(predictions_clusters, bins, color='green', alpha=0.5, label='clusters')
+    plt.hist(predictions_non_clusters, bins, color='red', alpha=0.5, label='non-clusters')
+    plt.legend(loc='upper right')
+    plt.title('Class prediction')
+    plt.savefig(Path(model_path, 'probabilities_hist.png'))
+    plt.close()
+
+
 def plot_loss_by_model(model_name: str, result: dict, val_result: dict, path: str):
     plt.figure(figsize=(10, 6))
 
@@ -53,32 +63,9 @@ def modelPerformance(model_name, optimizer_name,
                     #  result, val_result
                      ):
     '''
-    Plots ROC and Precision-Recall curves, change of loss and accuracy throughout training,
+    Plots distributions of probabilities of classes, ROC and Precision-Recall curves, change of loss and accuracy throughout training,
     confusion matrix and its weighted version and saves them in .png files,
     counts accuracy, precision, recall, false positive rate and f1-score and saves them in .txt file
-
-    Parameters
-    ----------
-    model_name: string
-        Name of model.
-    optimizer_name: string
-        Name of optimizer.
-    y_target: 1d array-like, or label indicator array / sparse matrix
-        Target scores, can either be probability estimates of the positive class, confidence values, or non-thresholded
-        measure of decisions (as returned by “decision_function” on some classifiers).
-    y_predicted: 1d array-like, or label indicator array / sparse matrix
-        Predicted labels, as returned by a classifier.
-    y_classified: 1d array-like, or label indicator array / sparse matrix
-        True binary labels.
-    classes: List
-        Labels of classifier.
-    result: Dictionary
-        Loss and accuracy at each epoch during training for each chosen model collected in dictionary.
-    val_result: Dictionary
-        Loss and accuracy at each epoch during validation for each chosen model collected in dictionary.
-
-
-    Returns : void
     '''
                          
     acc = accuracy_score(predictions.y_true, predictions.y_pred)
@@ -95,6 +82,9 @@ def modelPerformance(model_name, optimizer_name,
 
     model_path = Path(settings.METRICS_PATH, f"{model_name}_{optimizer_name}")
     os.makedirs(model_path, exist_ok=True)
+
+    # plot probablities distribution
+    probabilities_hist(predictions.y_probs, predictions.y_negative_probs, model_path)
 
     # plot roc curve
 

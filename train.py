@@ -135,6 +135,7 @@ class Trainer:
         test_accs = []
 
         y_pred, y_probs, y_true, descriptions = [], [], [], []
+        y_negative_target_probs = []
 
         for batch in tqdm(test_dataloader):
 
@@ -143,6 +144,7 @@ class Trainer:
             test_accs.append(acc)
 
             y_probs.extend(logits[:, 1].data.cpu().numpy().ravel())
+            y_negative_target_probs.extend(logits[:, 0].data.cpu().numpy().ravel())
             y_pred.extend(outputs.data.cpu().numpy().ravel())
             y_true.extend(labels.data.cpu().numpy().ravel())
 
@@ -152,6 +154,7 @@ class Trainer:
         predictions = pd.concat(descriptions).reset_index(drop=True)
         predictions['y_pred'] = y_pred
         predictions['y_probs'] = y_probs
+        predictions['y_negative_probs'] = y_negative_target_probs
         predictions['y_true'] = y_true
 
         return predictions, test_losses, test_accs,
