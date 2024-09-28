@@ -1,14 +1,8 @@
 import torch
 import torch.nn as nn
-import torchvision
-from torchvision import transforms
-from torch.utils.data import DataLoader, Dataset
-import torch.backends.cudnn as cudnn
-import torch.optim as optim
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
-import copy
-import time
 import numpy as np
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
@@ -19,7 +13,7 @@ from copy import deepcopy
 from collections import defaultdict
 from config import settings
 import pandas as pd
-
+import matplotlib.pyplot as plt
 
 class Trainer:
     def __init__(self, model: nn.Module,
@@ -191,6 +185,76 @@ class Trainer:
     def rollback_states(self):
         self.model.load_state_dict(self.cache['model_state'])
         self.optimizer.load_state_dict(self.cache['optimizer_state'])
+
+
+    def lr_find(self, start_lr=1e-7, end_lr=1, num_iter=50):
+
+        initial_state = self.model.state_dict()
+
+        self.model.train()
+        lr_lambda = lambda x: (end_lr / start_lr) ** (x / num_iter)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda)
+
+        losses = []
+        lrs = []
+
+        for batch in tqdm(self.train_dataloader, unit="batch"):
+
+            *_, loss, _ = self.compute_all(batch)
+
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            scheduler.step()
+
+
+            # Record the learning rate and corresponding loss
+            lr = self.optimizer.param_groups[0]['lr']
+            lrs.append(lr)
+            losses.append(loss.item())
+
+
+
+        # Convert lists to numpy arrays for analysis
+        losses = np.array(losses)
+        lrs = np.array(lrs)
+
+        # Smooth the loss curve to reduce noise
+        from scipy.ndimage import gaussian_filter1d
+        smoothed_losses = gaussian_filter1d(losses, sigma=2)
+
+        # Compute the gradients (derivative) of the smoothed losses
+        gradients = np.gradient(smoothed_losses)
+
+
+        # Find index where loss starts increasing
+        increasing_loss_idxs = np.where(gradients > 0)[0]
+        if len(increasing_loss_idxs) > 0:
+            first_increase_idx = increasing_loss_idxs[0]
+            optimal_lr = lrs[first_increase_idx - 1]  # Choose LR before loss increases
+            print(f"Suggested Optimal Learning Rate: {optimal_lr}")
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(lrs, losses, label='Loss')
+            plt.xscale('log')
+            plt.xlabel('Learning Rate')
+            plt.ylabel('Loss')
+            plt.title('Learning Rate Finder')
+            plt.grid(True)
+
+            # Mark the optimal learning rate
+            plt.axvline(x=optimal_lr, color='r', linestyle='--', label=f'Optimal LR: {optimal_lr:.2E}')
+            plt.legend()
+            plt.show()
+
+            self.model.load_state_dict(initial_state)
+
+
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = optimal_lr
+        else:
+            raise AttributeError("Could not find an optimal learning rate. Try adjusting the range.")
 
 
 class Predictor():

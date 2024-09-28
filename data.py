@@ -59,7 +59,7 @@ class ClusterDataset(Dataset):
             description_csv_path, 
             index_col=0,
             dtype={"target": int}
-        ).tail(128)
+        )
 
         self.description_df.index = self.description_df.index.astype(str)
         self.description_df.loc[:, "red_shift"] = self.description_df["red_shift"].astype(float)
