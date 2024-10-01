@@ -8,6 +8,8 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 from typing import Any
 
+from scipy.signal import savgol_filter
+
 from tqdm import trange
 from copy import deepcopy
 from collections import defaultdict
@@ -187,17 +189,95 @@ class Trainer:
         self.optimizer.load_state_dict(self.cache['optimizer_state'])
 
 
-    def lr_find(self, start_lr=1e-7, end_lr=1, num_iter=50):
+    def find_lr(self, min_lr: float = 1e-6,
+                max_lr: float = 1e-1,
+                num_lrs: int = 20,
+                smoothing_window=30,
+                smooth_beta: float = 0.8) -> dict:
+        lrs = np.geomspace(start=min_lr, stop=max_lr, num=num_lrs)
+        logs = {'lr': [], 'loss': [], 'avg_loss': []}
+        avg_loss = None
+        model, optimizer = self.model, self.optimizer
+
+        model.train()
+        for lr, batch in tqdm(zip(lrs, self.train_dataloader), desc='finding LR', total=num_lrs):
+            # apply new lr
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+
+            # train step
+            *_, loss, _  = self.compute_all(batch)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            loss = loss.cpu().detach().numpy()
+            # calculate smoothed loss
+            if avg_loss is None:
+                avg_loss = loss
+            else:
+                avg_loss = smooth_beta * avg_loss + (1 - smooth_beta) * loss
+
+            # store values into logs
+            logs['lr'].append(lr)
+            logs['avg_loss'].append(avg_loss)
+            logs['loss'].append(loss)
+
+
+        # Compute the logarithm of learning rates
+        log_lrs = np.log10(logs['lr'])
+
+        smoothed_losses =  savgol_filter(logs['loss'], window_length=smoothing_window, polyorder=2)
+
+        # Compute the derivative of the smoothed loss with respect to log_lr
+        loss_derivatives = np.gradient(smoothed_losses, log_lrs)
+
+        # Find the index where the derivative is minimum (most negative)
+        optimal_idx = np.argmin(loss_derivatives)
+        optimal_lr = logs['lr'][optimal_idx]
+
+            
+
+        logs.update({key: np.array(val) for key, val in logs.items()})
+
+        plt.figure(figsize=(10, 6))
+
+        plt.plot(logs['lr'], logs['loss'], label='Loss')
+        plt.plot(logs['lr'], smoothed_losses, label='Smoothed loss')
+        plt.axvline(x=optimal_lr, color='r', linestyle='--', label=f'Optimal LR: {optimal_lr:.2E}')
+        plt.xscale('log')
+        plt.xlabel('Learning Rate')
+        plt.ylabel('Loss')
+        plt.title('Learning Rate Finder')
+        plt.grid(True)
+
+        # Mark the optimal learning rate
+        # plt.axvline(x=optimal_lr, color='r', linestyle='--', label=f'Optimal LR: {optimal_lr:.2E}')
+        plt.legend()
+        plt.show()
+        self.rollback_states()
+
+        return logs
+
+
+    def lr_find(self, start_lr=5, end_lr=1e-8, num_iter=79):
 
         initial_state = self.model.state_dict()
 
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = start_lr
+
         self.model.train()
-        lr_lambda = lambda x: (end_lr / start_lr) ** (x / num_iter)
-        scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda)
+        # lr_lambda = lambda x: (end_lr / start_lr) ** (x / num_iter)
+        # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=self.optimizer, lr_lambda=lr_lambda)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=0.99)
+        # scheduler = torch.optim.lr_scheduler.LinearLR(optimizer=self.optimizer, start_factor=start_lr, end_factor=end_lr, total_iters=num_iter) 
+
 
         losses = []
         lrs = []
 
+        t = 0
         for batch in tqdm(self.train_dataloader, unit="batch"):
 
             *_, loss, _ = self.compute_all(batch)
