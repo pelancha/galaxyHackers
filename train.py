@@ -16,23 +16,33 @@ from collections import defaultdict
 from config import settings
 import pandas as pd
 import matplotlib.pyplot as plt
+from comet_ml import Experiment
+
 
 class Trainer:
-    def __init__(self, model: nn.Module,
+    def __init__(self, 
+                 model_name: str,
+                 model: nn.Module,
+                 optimizer_name: str,
                  optimizer: Optimizer,
                  train_dataloader: DataLoader,
                  val_dataloader: DataLoader,
+                 experiment: Experiment,
                  criterion: Any | None = None, 
                  lr_scheduler: LRScheduler | None = None,
-                 lr_scheduler_type: str | None = None,
+                 lr_scheduler_type: str = 'per_epoch',
                  batch_size: int = 128):
+        
+        self.model_name = model_name 
         self.model = model
+        self.optimizer_name = optimizer_name
         self.optimizer = optimizer
         self.criterion = criterion
         self.lr_scheduler = lr_scheduler
         self.lr_scheduler_type = lr_scheduler_type
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
+        self.experiment = experiment
         self.batch_size = batch_size
 
         self.history = defaultdict(list)
@@ -57,10 +67,10 @@ class Trainer:
     def post_train_stage(self):
         pass
 
-    def post_val_stage(self, val_loss):
+    def post_val_stage(self):
         # called after every end of val stage (equals to epoch end)
         if self.lr_scheduler is not None and self.lr_scheduler_type == 'per_epoch':
-            self.lr_scheduler.step(val_loss)
+            self.lr_scheduler.step()
 
 
 
@@ -71,6 +81,27 @@ class Trainer:
         
         torch.save(self.model.state_dict(), path)
 
+    def log_metrics(self, loss, acc, mode:str = "train", step: int|None = None, epoch: int|None=None):
+
+    
+        loss_name = f"{self.model_name}_{self.optimizer_name}_{mode}_loss"
+        acc_name = f"{self.model_name}_{self.optimizer_name}_{mode}_acc"
+
+        metrics =  {
+                loss_name: loss,
+                acc_name: acc,
+                
+             }
+        
+        if epoch is not None:
+            self.experiment.log_metrics(metrics, epoch=epoch)
+        elif step is not None:
+            self.experiment.log_metrics(metrics, step=step)
+
+        else:
+            raise ValueError("No step or epoch given")
+
+
     def train(self, num_epochs: int):
         model = self.model
         optimizer = self.optimizer
@@ -78,7 +109,7 @@ class Trainer:
         best_loss = float('inf') # +inf
 
 
-        for _ in trange(
+        for epoch in trange(
             num_epochs, 
             unit="epoch", 
             leave=False, 
@@ -87,20 +118,19 @@ class Trainer:
 
             
             model.train()
-            train_losses = []
-            for batch in tqdm(self.train_dataloader, unit="batch"):
+
+            for batch in tqdm(self.train_dataloader, unit="batch", leave=False):
 
                 *_, loss, acc = self.compute_all(batch)
 
-                train_losses.append(loss)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
                 self.post_train_batch()
 
-                self.history["train_loss"].append(loss.item())
-                self.history["train_acc"].append(acc)
+                self.log_metrics(loss=loss.item(), acc=acc, mode='train', step=self.global_step)
+
                 self.global_step += 1
 
 
@@ -115,10 +145,11 @@ class Trainer:
 
             val_loss = np.mean(val_losses)
             val_acc = np.mean(val_accs)
-            self.post_val_stage(val_loss)
+            self.post_val_stage()
 
-            self.history["val_loss"].append(val_loss)
-            self.history["val_acc"].append(val_acc)
+       
+
+            self.log_metrics(loss=val_loss, acc=val_acc, mode='val', epoch=epoch)
 
 
             if val_loss < best_loss:
@@ -257,84 +288,9 @@ class Trainer:
         plt.show()
         self.rollback_states()
 
-        return logs
+        self.optimizer.lr = optimal_lr
 
-
-    def lr_find(self, start_lr=5, end_lr=1e-8, num_iter=79):
-
-        initial_state = self.model.state_dict()
-
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = start_lr
-
-        self.model.train()
-        # lr_lambda = lambda x: (end_lr / start_lr) ** (x / num_iter)
-        # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=self.optimizer, lr_lambda=lr_lambda)
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=0.99)
-        # scheduler = torch.optim.lr_scheduler.LinearLR(optimizer=self.optimizer, start_factor=start_lr, end_factor=end_lr, total_iters=num_iter) 
-
-
-        losses = []
-        lrs = []
-
-        t = 0
-        for batch in tqdm(self.train_dataloader, unit="batch"):
-
-            *_, loss, _ = self.compute_all(batch)
-
-
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            scheduler.step()
-
-
-            # Record the learning rate and corresponding loss
-            lr = self.optimizer.param_groups[0]['lr']
-            lrs.append(lr)
-            losses.append(loss.item())
-
-
-
-        # Convert lists to numpy arrays for analysis
-        losses = np.array(losses)
-        lrs = np.array(lrs)
-
-        # Smooth the loss curve to reduce noise
-        from scipy.ndimage import gaussian_filter1d
-        smoothed_losses = gaussian_filter1d(losses, sigma=2)
-
-        # Compute the gradients (derivative) of the smoothed losses
-        gradients = np.gradient(smoothed_losses)
-
-
-        # Find index where loss starts increasing
-        increasing_loss_idxs = np.where(gradients > 0)[0]
-        if len(increasing_loss_idxs) > 0:
-            first_increase_idx = increasing_loss_idxs[0]
-            optimal_lr = lrs[first_increase_idx - 1]  # Choose LR before loss increases
-            print(f"Suggested Optimal Learning Rate: {optimal_lr}")
-
-            plt.figure(figsize=(10, 6))
-            plt.plot(lrs, losses, label='Loss')
-            plt.xscale('log')
-            plt.xlabel('Learning Rate')
-            plt.ylabel('Loss')
-            plt.title('Learning Rate Finder')
-            plt.grid(True)
-
-            # Mark the optimal learning rate
-            plt.axvline(x=optimal_lr, color='r', linestyle='--', label=f'Optimal LR: {optimal_lr:.2E}')
-            plt.legend()
-            plt.show()
-
-            self.model.load_state_dict(initial_state)
-
-
-            for param_group in self.optimizer.param_groups:
-                param_group['lr'] = optimal_lr
-        else:
-            raise AttributeError("Could not find an optimal learning rate. Try adjusting the range.")
+        return optimal_lr
 
 
 class Predictor():
